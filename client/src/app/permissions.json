@@ -1,0 +1,37 @@
+{
+  "master": {
+    "master": true,
+    "owner": true,
+    "admin": true,
+    "developer": false,
+    "user": true
+  },
+  "owner": {
+    "master": false,
+    "owner": true,
+    "admin": true,
+    "developer": true,
+    "user": true
+  },
+  "admin": {
+    "master": false,
+    "owner": false,
+    "admin": true,
+    "developer": false,
+    "user": true
+  },
+  "user": {
+    "master": false,
+    "owner": false,
+    "admin": false,
+    "developer": false,
+    "user": true
+  },
+  "developer": {
+    "master": false,
+    "owner": false,
+    "admin": false,
+    "developer": true,
+    "user": true
+  }
+}

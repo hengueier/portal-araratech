@@ -1,0 +1,14 @@
+{
+  "development": {
+    "stripe": {
+      "publishableAPIKey": ""
+    },
+    "server_url": "http://localhost:8080"
+  },
+  "production": {
+    "stripe": {
+      "publishableAPIKey": ""
+    },
+    "server_url": ""
+  }
+}

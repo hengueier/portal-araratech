@@ -1,0 +1,24 @@
+{
+  "scripts": {
+    "setup": "npm install && npm run setup:server & npm run setup:client & npm run setup:mission:server & npm run setup:mission:client && wait",
+    "setup:server": "cd server && npm install",
+    "setup:client": "cd client && npm install",
+    "setup:mission:server": "cd mission-control && npm install",
+    "setup:mission:client": "cd mission-control/client && npm install",
+    "local:dev": "concurrently --names \"server,client\" -c \"green.bold,cyan.bold\" \"npm run server\" \"npm run client\"",
+    "local:admin": "concurrently --names \"server,client,mission-control\" -c \"green.bold,cyan.bold,yellow.bold\" \"npm run server\" \"npm run client\" \"npm run mission-control\"",
+    "docker:dev": "npm run develop && npm run develop:logs",
+    "docker:dev:logs": "docker compose -f compose.yml -f compose/develop.yml logs --follow --tail 10",
+    "docker:redis": "docker compose -f compose.yml -f compose/redis.yml up --build",
+    "docker:mongo": "docker compose -f compose.yml -f compose/mongo.yml up --build -d",
+    "docker:mongo:logs": "docker compose -f compose.yml -f compose/mongo.yml logs --follow --tail 10",
+    "docker:mongo:kill": "docker compose -f compose.yml -f compose/mongo.yml kill",
+    "docker:reload": "docker compose -f compose.yml -f compose/develop.yml restart -d && npm run develop:logs",
+    "deploy:dockerhub": "docker compose -f compose.yml -f compose/deploy.yml build --parallel --pull",
+    "develop": "docker compose -f compose.yml -f compose/develop.yml up --build -d",
+    "develop:logs": "docker compose -f compose.yml -f compose/develop.yml logs --follow --tail 10"
+  },
+  "dependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

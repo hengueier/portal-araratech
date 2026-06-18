@@ -1,0 +1,82 @@
+services:
+  server:
+    container_name: main_server_dev
+    build:
+      context: ./
+      dockerfile: ./server/Dockerfile
+      target: development
+    restart: always
+    environment:
+      - DOCKER=y
+    volumes:
+      - ./server/src:/usr/src/app/server/src:rw
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./server/.env
+    networks:
+      - app
+
+  admin:
+    container_name: admin_server_dev
+    restart: always
+    build:
+      context: ./
+      dockerfile: ./mission-control/Dockerfile
+      target: development
+    volumes:
+      - ./mission-control/src:/usr/src/app/mission-control/src:rw
+    environment:
+      - DOCKER=y
+    ports:
+      - "5001:5001"
+    env_file:
+      - ./mission-control/.env
+    networks:
+      - app
+
+  client:
+    build:
+      context: ./
+      dockerfile: ./client/Dockerfile
+    container_name: main_client_dev
+    volumes:
+      - ./client/src:/usr/src/app/client/src:rw
+    restart: always
+    ports:
+      - "3000:3000"
+    networks:
+      - app
+
+  client-admin:
+    container_name: admin_client_dev
+    build:
+      context: ./
+      dockerfile: ./mission-control/client/Dockerfile
+    restart: always
+    volumes:
+      - ./mission-control/client/src:/usr/src/app/mission-control/client/src:rw
+    environment:
+      PORT: 5002
+    ports:
+      - "5002:5002"
+    networks:
+      - app
+
+  mongo:
+    image: mongo:6-jammy
+    container_name: mongo_db
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: db_admin
+      MONGO_INITDB_ROOT_PASSWORD: db_admin
+    ports:
+      - "27017:27017"
+    volumes:
+      - db:/data/db
+    networks:
+      - app
+
+volumes:
+  db:
+    driver: local
