@@ -1,36 +1,26 @@
-import Database from "../../Database";
+import prisma from "../../prisma";
 
-/*
- * pushtoken.create()
- * assign a new push token to the user
- */
-
-export const create = async ({ user, token }) => {
-  return await Database.User.update.one(
-    { id: user },
-    { $push: { push_token: token } },
-  );
+export const create = async ({
+  user,
+  token,
+}: {
+  user: string;
+  token: string;
+}) => {
+  return await prisma.pushToken.create({
+    data: { userId: user, token },
+  });
 };
 
-/*
- * pushtoken.get()
- * get push tokens for the user
- */
+export const get = async ({ user }: { user: string; token?: string }) => {
+  const data = await prisma.pushToken.findMany({
+    where: { userId: user },
+    select: { token: true },
+  });
 
-export const get = async ({ user, token }) => {
-  const data = await Database.User.read.one(
-    { id: user },
-    { push_token: token },
-  );
-
-  return data.push_token?.length ? data.push_token : null;
+  return data.length ? data.map((d) => d.token) : null;
 };
 
-/*
- * pushtoken.delete()
- * remove a push token for this user
- */
-
-export const deletePushToken = async ({ user }) => {
-  return await Database.User.delete.one({ user: user });
+export const deletePushToken = async ({ user }: { user: string }) => {
+  return await prisma.pushToken.deleteMany({ where: { userId: user } });
 };

@@ -1,47 +1,38 @@
 import { v4 as uuidv4 } from "uuid";
-import mongoose, {Schema} from "mongoose";
+import prisma from "../../prisma/client";
 
-const {{capitalisedName}}Schema = new Schema({
-
-  account_id: { type: String, required: true },
-
-});
-
-const {{capitalisedName}} = mongoose.model('{{capitalisedName}}', {{capitalisedName}}Schema, '{{view}}');
-export const schema = {{capitalisedName}};
-
-export const create = async function(data, account){
-
-  const {{view}} = new {{capitalisedName}}({
-
-    id: uuidv4(),
-    account_id: account,
-
+export const create = async function(data: Record<string, unknown>, account: string) {
+  const id = uuidv4();
+  await prisma.{{view}}.create({
+    data: { id, accountId: account, ...data },
   });
-
-  data = await {{view}}.save();
-  return data.id;
-
-}
-
-export const get = async function(id, account){
-
-  return await {{capitalisedName}}.find({
-
-    ...id && { id: id },
-    account_id: account
-
-  });
-}
-
-export const update = async function(id, data, account){
-
-  await {{capitalisedName}}.findOneAndUpdate({ id: id, account_id: account }, data);
-  return data;
-
-}
-
-  await {{capitalisedName}}.findOneAndRemove({ id: id });
   return id;
+};
 
-}
+export const get = async function(id: string | null, account: string) {
+  return await prisma.{{view}}.findMany({
+    where: {
+      accountId: account,
+      ...(id && { id }),
+    },
+  });
+};
+
+export const update = async function(
+  id: string,
+  data: Record<string, unknown>,
+  account: string,
+) {
+  await prisma.{{view}}.updateMany({
+    where: { id, accountId: account },
+    data,
+  });
+  return data;
+};
+
+export const delete{{capitalisedName}} = async function(id: string, account: string) {
+  await prisma.{{view}}.deleteMany({
+    where: { id, accountId: account },
+  });
+  return id;
+};

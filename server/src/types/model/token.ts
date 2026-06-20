@@ -1,6 +1,4 @@
-import mongoose, { Document, Schema, Model } from "mongoose";
-
-export interface TokenDocument extends Document {
+export interface TokenDocument {
   id: string;
   provider: string;
   jwt?: string;

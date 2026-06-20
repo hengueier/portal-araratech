@@ -1,6 +1,6 @@
 require("dotenv").config();
 import moduleAlias from "module-alias";
-moduleAlias.addAlias("@", __dirname);
+(moduleAlias as unknown as { addAlias: (name: string, path: string) => void }).addAlias("@", __dirname);
 moduleAlias();
 import "./helper/environment";
 import express, { Express, Request, Response, NextFunction } from "express";

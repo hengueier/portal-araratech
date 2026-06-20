@@ -1,6 +1,4 @@
-import { Document } from "mongoose";
-
-export interface LoginDocument extends Document {
+export interface LoginDocument {
   id: string;
   user_id: string;
   ip: string;

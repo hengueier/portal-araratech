@@ -41,26 +41,24 @@ Before you begin, ensure your development machine meets these prerequisites:
    docker --version
    ```
 
-3. **MongoDB**: Install MongoDB either locally or just run in a Docker container.
-   - **Local Installation (All Platforms):** Download MongoDB from the [official website](https://www.mongodb.com/try/download/community).
-   - **Docker Installation:** Use a Docker container for MongoDB.
-
-     ```bash
-     npm run mongo
-     ```
-
-   **Check MongoDB container:**
+3. **PostgreSQL**: Install PostgreSQL locally or run it via Docker Compose.
 
    ```bash
-   npm run mongo:logs
-   # OR
-   docker ps
+   npm run docker:postgres
    ```
 
-   **Stop MongoDB container:**
+   **Apply database migrations:**
 
    ```bash
-   npm run kill
+   npm run db:migrate
+   ```
+
+   **Check PostgreSQL container:**
+
+   ```bash
+   npm run docker:postgres:logs
+   # OR
+   docker ps
    ```
 
 ---
@@ -138,7 +136,7 @@ The application is optimized for Docker.
 
 - Use **Windows Subsystem for Linux (WSL)** for a Linux-like experience:
   - Install WSL from the [Microsoft website](https://learn.microsoft.com/en-us/windows/wsl/install).
-  - Use WSL to set up Node.js, Docker, and MongoDB.
+   - Use WSL to set up Node.js, Docker, and PostgreSQL.
 
 Alternatively, use the standard Windows installers provided on the respective websites.
 

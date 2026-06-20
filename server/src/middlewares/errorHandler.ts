@@ -22,7 +22,7 @@ import { Express, NextFunction, Request, Response } from "express";
  *
  * @important
  * - Avoid exposing detailed stack traces or internal server information in production.
- * - This middleware assumes a logging mechanism, through a mongo collection (`Model.Log.custom.create.new`) that must be
+ * - This middleware assumes a logging mechanism through `Database.Log.custom.create.new` that must be
  *   implemented separately.
  *
  * Example Response:

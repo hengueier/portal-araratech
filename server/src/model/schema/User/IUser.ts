@@ -1,5 +1,3 @@
-import { Document } from "mongoose";
-
 export interface IUser {
   id: string;
   name: string;
@@ -15,15 +13,13 @@ export interface IUser {
   default_account: string;
   facebook_id?: string;
   twitter_id?: string;
-  account?: any;
+  account?: unknown[];
   push_token?: string;
   account_id?: string | null;
   has_password?: boolean | null;
   plan?: string;
   stripe_subscription_id?: string;
   stripe_customer_id?: string;
-}
-
-export interface IUserDocument extends Omit<IUser, "id">, Document {
-  id: string;
+  permission?: string;
+  onboarded?: boolean;
 }

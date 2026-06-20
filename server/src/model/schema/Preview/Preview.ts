@@ -1,16 +1,10 @@
+import prisma from "../../prisma";
 import Model from "../Model";
-import { IPreviewDocument } from "./IPreview";
+import { IPreview } from "./IPreview";
 
-export class Preview extends Model<IPreviewDocument> {
+export class Preview extends Model<IPreview> {
   constructor() {
-    super(
-      {
-        id: { type: String, required: true, unique: true },
-        account_id: { type: String, required: true },
-      },
-      "Preview",
-      false,
-    );
+    super(prisma.preview as never);
   }
 
   public custom = {

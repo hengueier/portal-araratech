@@ -1,9 +1,7 @@
-import mongoose, { Document, Model, Schema } from "mongoose";
-
-export interface EventDocument extends Document {
+export interface EventDocument {
   id: string;
   name: string;
-  metadata?: object;
+  metadata?: Record<string, unknown>;
   time: Date;
   user_id?: string;
   account_id?: string;

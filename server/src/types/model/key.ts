@@ -1,10 +1,8 @@
-import { Document } from "mongoose";
-
-export interface KeyDocument extends Document {
+export interface KeyDocument {
   id: string;
   name?: string;
   key: string;
-  scope: any;
+  scope: unknown[];
   date_created: Date;
   active: boolean;
   account_id: string;

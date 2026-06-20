@@ -1,6 +1,4 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
-
-export interface ILog extends Document {
+export interface ILog {
   id: string;
   time: Date;
   message?: string;

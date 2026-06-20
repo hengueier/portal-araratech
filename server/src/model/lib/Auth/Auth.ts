@@ -73,19 +73,18 @@ export const verify = function (permission: string, scope: string = null) {
         utility.assert(verified, "Invalid API key");
 
         // key ok, check scope
+        const verifiedScope = verified.scope as string[];
         utility.assert(
-          verified.scope.includes(scope),
+          verifiedScope.includes(scope),
           `You don't have permission to use this scope`,
         );
 
         // log request and continue
         if (process.env.ENABLE_API_LOGS === "true")
-          Database.Log.create.new({
-            time: new Date(),
+          Database.Log.custom.create.new({
             message: null,
             body: req.body,
             req: req,
-            sendNotification: false,
             account: verified.account_id,
           });
 

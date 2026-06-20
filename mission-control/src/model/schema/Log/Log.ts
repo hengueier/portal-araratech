@@ -1,19 +1,4 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
-import { ILog } from './ILog';
-
-
-const LogSchema: Schema = new Schema({
-  id: { type: String, required: true, unique: true },
-  time: { type: Date, required: true },
-  message: { type: String },
-  body: { type: String },
-  method: { type: String },
-  endpoint: { type: String },
-  account_id: { type: String },
-  user_id: { type: String }
-});
-
-const Log: Model<ILog> = mongoose.model<ILog>('Log', LogSchema, 'log');
+import prisma from "../../prisma";
 
 interface Filter {
   search?: string;
@@ -21,44 +6,42 @@ interface Filter {
   offset?: string;
 }
 
-export const get = async ({ id, filter }: { id?: string; filter?: Filter }) => {
+export const get = async ({
+  id,
+  filter,
+}: {
+  id?: string;
+  filter?: Filter;
+}) => {
   if (id) {
-    const data = await Log.findOne({ id }).lean().exec();
-    if (data) {
-      delete (data as any).__v;
-      return [data];
-    }
-    return [];
+    const data = await prisma.log.findFirst({ where: { id } });
+    return data ? [data] : [];
   }
 
-  let selector: any = {};
+  const where = filter?.search
+    ? {
+        OR: [
+          { message: { contains: filter.search, mode: "insensitive" as const } },
+          { body: { contains: filter.search, mode: "insensitive" as const } },
+          { method: { contains: filter.search, mode: "insensitive" as const } },
+          { endpoint: { contains: filter.search, mode: "insensitive" as const } },
+        ],
+      }
+    : {};
 
-  if (filter?.search) {
-    const s = { $regex: filter.search, $options: 'i' };
-    selector = {
-      $or: [
-        { message: s },
-        { body: s },
-        { method: s },
-        { endpoint: s },
-        { email: s }
-      ]
-    };
-  }
+  const [results, total] = await Promise.all([
+    prisma.log.findMany({
+      where,
+      take: parseInt(filter?.limit || "0") || undefined,
+      skip: parseInt(filter?.offset || "0") || undefined,
+      orderBy: { time: "desc" },
+    }),
+    prisma.log.count({ where }),
+  ]);
 
-  const data = await Log.find(selector)
-    .limit(parseInt(filter?.limit || '0'))
-    .skip(parseInt(filter?.offset || '0'))
-    .exec();
-
-  const total = await Log.countDocuments().exec();
-
-  return {
-    results: data,
-    total
-  };
-}
+  return { results, total };
+};
 
 export const deleteLog = async (id: string) => {
-  return await Log.deleteOne({ id }).exec();
-}
+  return await prisma.log.deleteMany({ where: { id } });
+};

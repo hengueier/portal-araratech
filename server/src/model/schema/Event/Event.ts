@@ -1,41 +1,31 @@
+import prisma from "../../prisma";
 import Model from "../Model";
-import { IEventDocument } from "./IEvent";
+import { IEvent } from "./IEvent";
 
-export class Event extends Model<IEventDocument> {
+export class Event extends Model<IEvent> {
   constructor() {
-    super(
-      {
-        id: { type: String, required: true, unique: true },
-        name: { type: String, required: true },
-        metadata: { type: Object },
-        time: { type: Date, required: true },
-        user_id: { type: String },
-        account_id: { type: String },
-      },
-      "Event",
-    );
+    super(prisma.event as never);
   }
 
   public custom = {
-    /*
-     * event.create()
-     * create a new event
-     */
-
     create: async ({
       data,
       user,
       account,
     }: {
-      data: any;
+      data: Record<string, unknown>;
       user: string;
       account: string;
     }) => {
-      data.user_id = user;
-      data.account_id = account;
-      data.time = new Date();
+      const eventData = {
+        name: data.name as string,
+        metadata: data.metadata || null,
+        userId: user,
+        accountId: account,
+        time: new Date(),
+      };
 
-      return await this.create.new(data);
+      return await this.create.new(eventData as Partial<IEvent>);
     },
   };
 }

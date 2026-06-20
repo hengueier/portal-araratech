@@ -1,36 +1,33 @@
-const db = require('./knex')();
+const prisma = require('../../prisma/client');
 const { v4: uuidv4 } = require('uuid');
 
 exports.create = async function(data, account){
-
   data.id = uuidv4();
-  data.account_id = account;
-  await db('{{view}}').insert(data);
+  data.accountId = account;
+  await prisma.{{view}}.create({ data });
   return data;
-
 }
 
 exports.get = async function(id, account){
-
-  return await db('{{view}}').select('*')
-  .where({ account_id: account })
-  .modify(q => {
-
-    id && q.where('id', id);
-
+  return await prisma.{{view}}.findMany({
+    where: {
+      accountId: account,
+      ...(id && { id }),
+    },
   });
 }
 
 exports.update = async function(id, data, account){
-
-  await db('{{view}}').update(data).where({ id: id, account_id: account });
+  await prisma.{{view}}.updateMany({
+    where: { id, accountId: account },
+    data,
+  });
   return data;
-
 }
 
-exports.delete = async function(id, account){
-
-  await db('{{view}}').del().where({ id: id, account_id: account });
+exports.delete{{capitalisedName}} = async function(id, account){
+  await prisma.{{view}}.deleteMany({
+    where: { id, accountId: account },
+  });
   return id;
-
 }

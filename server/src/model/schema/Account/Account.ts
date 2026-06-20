@@ -1,84 +1,65 @@
+import prisma from "../../prisma";
 import Model from "../Model";
-import { IAccountDocument } from "./IAccount";
+import { IAccount } from "./IAccount";
 import StripeService from "../../lib/Stripe/stripe";
-import Database from "../../Database";
 
 const stripe = new StripeService();
 
-export class Account extends Model<IAccountDocument> {
+export class Account extends Model<IAccount> {
   constructor() {
-    super(
-      {
-        id: { type: String, required: true, unique: true },
-        plan: { type: String, default: "free" },
-        name: { type: String },
-        email: { type: String },
-        active: { type: Boolean, required: true },
-        stripe_subscription_id: { type: String },
-        stripe_customer_id: { type: String },
-        date_created: { type: Date, required: true },
-      },
-      "Account",
-    );
+    super(prisma.account as never);
   }
 
   public custom = {
     create: {
-      /*
-       * account.create()
-       * create a new account and return the account id
-       */
-
       create: async ({ plan }: { plan?: string } = {}) => {
         const data = {
           name: "My Account",
           active: true,
-          date_created: new Date(),
+          dateCreated: new Date(),
           plan: plan || "free",
         };
 
-        return await this.create.new(data as any);
+        return await this.create.new(data as Partial<IAccount>);
       },
     },
     read: {
-      // read methods here
       get: async (id: string) => {
-        const accountData = (await this.model
-          .findOne({ id: id })
-          .lean()) as IAccountDocument & {
-          owner_email: string;
-          owner_name: string;
+        const accountData = await prisma.account.findFirst({
+          where: { id },
+        });
+
+        if (!accountData) return null;
+
+        const ownerLink = await prisma.accountUser.findFirst({
+          where: {
+            accountId: id,
+            permission: { in: ["owner", "master"] },
+          },
+          include: { user: { select: { name: true, email: true } } },
+        });
+
+        return {
+          ...accountData,
+          date_created: accountData.dateCreated,
+          stripe_subscription_id: accountData.stripeSubscriptionId,
+          stripe_customer_id: accountData.stripeCustomerId,
+          owner_email: ownerLink?.user.email,
+          owner_name: ownerLink?.user.name,
         };
-
-        if (accountData) {
-          const userData = await Database.User.read.one(
-            {
-              "account.id": id,
-              $or: [
-                { "account.permission": "owner" },
-                { "account.permission": "master" },
-              ],
-            },
-            { name: 1, email: 1 },
-          );
-
-          if (userData) {
-            accountData.owner_email = userData.email;
-            accountData.owner_name = userData.name;
-          }
-        }
-
-        return accountData;
       },
       subscription: async (id: string) => {
         let subscription, status;
 
-        const accountData = await this.model.findOne({ id: id });
+        const accountData = await prisma.account.findFirst({ where: { id } });
         if (!accountData) throw { message: `Account doesn't exist` };
 
-        if (accountData.plan !== "free" && accountData.stripe_subscription_id) {
+        if (
+          accountData.plan !== "free" &&
+          accountData.stripeSubscriptionId
+        ) {
           subscription = await stripe.getSubscription(
-            accountData.stripe_subscription_id,
+            accountData.stripeSubscriptionId,
           );
 
           status =
@@ -87,8 +68,12 @@ export class Account extends Model<IAccountDocument> {
               ? subscription?.latest_invoice?.payment_intent?.status
               : subscription.status;
 
-          if (status !== "active" && status !== "trialing")
-            await this.model.findOneAndUpdate({ id: id }, { active: false });
+          if (status !== "active" && status !== "trialing") {
+            await prisma.account.update({
+              where: { id },
+              data: { active: false },
+            });
+          }
         } else if (accountData.plan === "free") {
           status = "active";
         }
@@ -99,21 +84,35 @@ export class Account extends Model<IAccountDocument> {
         };
       },
     },
-
     update: {
       update: async ({
         id,
         data,
       }: {
         id: string;
-        data: Record<string, any>;
+        data: Record<string, unknown>;
       }) => {
-        return await this.model.findOneAndUpdate({ id: id }, data);
+        const prismaData: Record<string, unknown> = {};
+        if (data.name !== undefined) prismaData.name = data.name;
+        if (data.email !== undefined) prismaData.email = data.email;
+        if (data.active !== undefined) prismaData.active = data.active;
+        if (data.plan !== undefined) prismaData.plan = data.plan;
+        if (data.stripe_subscription_id !== undefined) {
+          prismaData.stripeSubscriptionId = data.stripe_subscription_id;
+        }
+        if (data.stripe_customer_id !== undefined) {
+          prismaData.stripeCustomerId = data.stripe_customer_id;
+        }
+
+        return await prisma.account.update({
+          where: { id },
+          data: prismaData,
+        });
       },
     },
     delete: {
       deleteAccount: async (id: string) => {
-        return await this.model.findOneAndRemove({ id: id });
+        return await prisma.account.delete({ where: { id } });
       },
     },
   };

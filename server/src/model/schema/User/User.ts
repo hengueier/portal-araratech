@@ -1,80 +1,83 @@
 import bcrypt from "bcrypt";
 import Cryptr from "cryptr";
+import prisma from "../../prisma";
 import Model from "../Model";
-import { IUserDocument, IUser } from "./IUser";
-import { escapeRegex } from "@/helper/utility";
+import { IUser } from "./IUser";
 
-const crypto = new Cryptr(process.env.CRYPTO_SECRET);
+const crypto = new Cryptr(process.env.CRYPTO_SECRET as string);
 
-export class User extends Model<IUserDocument> {
+function formatUser(
+  user: Record<string, unknown>,
+  accountId?: string,
+  accountUser?: { permission: string; onboarded: boolean },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    date_created: user.dateCreated,
+    last_active: user.lastActive,
+    disabled: user.disabled,
+    support_enabled: user.supportEnabled,
+    "2fa_enabled": user.twoFaEnabled,
+    default_account: user.defaultAccount,
+    facebook_id: user.facebookId,
+    twitter_id: user.twitterId,
+    has_password: user.password ? true : false,
+    account_id: accountId || user.defaultAccount,
+  };
+
+  if (accountUser) {
+    result.permission = accountUser.permission;
+    result.onboarded = accountUser.onboarded;
+  }
+
+  return result;
+}
+
+export class User extends Model<IUser> {
   constructor() {
-    super(
-      {
-        id: { type: String, required: true, unique: true },
-        name: { type: String, required: true },
-        email: { type: String, required: true },
-        password: { type: String },
-        date_created: Date,
-        last_active: Date,
-        disabled: { type: Boolean },
-        support_enabled: { type: Boolean, required: true },
-        "2fa_enabled": { type: Boolean, required: true },
-        "2fa_secret": { type: String },
-        "2fa_backup_code": { type: String },
-        default_account: { type: String, required: true },
-        facebook_id: { type: String },
-        twitter_id: { type: String },
-        account: { type: Array },
-        push_token: { type: String },
-      },
-      "User",
-    );
+    super(prisma.user as never);
   }
 
   public custom = {
     create: {
-      /*
-       * user.create()
-       * create a new user
-       */
-      create: async ({ user, account }: { user: any; account: string }) => {
-        const data: Omit<IUser, "id"> = {
+      create: async ({ user, account }: { user: Record<string, unknown>; account: string }) => {
+        const data: Record<string, unknown> = {
           name: user.name,
           email: user.email,
-          date_created: new Date(),
-          last_active: new Date(),
-          support_enabled: false,
-          "2fa_enabled": false,
-          facebook_id: user.facebook_id,
-          twitter_id: user.twitter_id,
-          default_account: account,
-          has_password: null,
-          account_id: null,
+          dateCreated: new Date(),
+          lastActive: new Date(),
+          supportEnabled: false,
+          twoFaEnabled: false,
+          facebookId: user.facebook_id,
+          twitterId: user.twitter_id,
+          defaultAccount: account,
         };
 
-        // encrypt password
         if (user.password) {
           const salt = await bcrypt.genSalt(10);
-          data.password = await bcrypt.hash(user.password, salt);
+          data.password = await bcrypt.hash(user.password as string, salt);
         }
 
-        const newUser = await this.create.new(data);
+        const newUser = await this.create.new(data as Partial<IUser>);
 
-        if (newUser.password) {
-          delete newUser.password;
-          newUser.has_password = true;
-        }
+        await prisma.accountUser.create({
+          data: {
+            accountId: account,
+            userId: newUser.id as string,
+            permission: "owner",
+            onboarded: false,
+          },
+        });
 
-        newUser.account_id = account;
-        console.log(newUser);
-        return newUser;
+        return formatUser(newUser as unknown as Record<string, unknown>, account, {
+          permission: "owner",
+          onboarded: false,
+        });
       },
     },
     read: {
-      /*
-       * user.get()
-       * get a user by email or user id
-       */
       get: async ({
         id,
         email,
@@ -85,87 +88,81 @@ export class User extends Model<IUserDocument> {
         id?: string;
         email?: string;
         account?: string;
-        social?: any;
+        social?: { provider: string; id: string };
         permission?: string;
       }) => {
-        let data;
-        const cond: any = {
-          ...(account && { "account.id": account }),
-          ...(permission && { "account.permission": permission }),
-        };
+        const where: Record<string, unknown> = {};
+
+        if (id) where.id = id;
+
+        if (email) {
+          where.email = { equals: email, mode: "insensitive" };
+        }
 
         if (social) {
-          cond[`${social.provider}_id`] = social.id;
-          data = await this.model
-            .find({
-              $or: [
-                { email: { $regex: new RegExp(escapeRegex(email), "i") } },
-                cond,
-              ],
-            })
-            .lean();
-        } else {
-          data = await this.model
-            .find({
-              ...cond,
-              ...{
-                ...(id && { id: id }),
-                ...(email && {
-                  email: { $regex: new RegExp(escapeRegex(email), "i") },
-                }),
-              },
-            })
-            .lean();
+          const socialField =
+            social.provider === "facebook" ? "facebookId" : "twitterId";
+          where.OR = [
+            ...(email
+              ? [{ email: { equals: email, mode: "insensitive" } }]
+              : []),
+            { [socialField]: social.id },
+          ];
         }
 
-        if (data?.length) {
-          data.forEach((u) => {
-            u.account_id = account || u.default_account;
-            const a = u.account.find((x) => x.id === u.account_id);
-            u.permission = a.permission;
-            u.onboarded = a.onboarded;
-            u.has_password = u.password ? true : false;
-            delete u.password;
-            delete u.account;
-          });
+        const accountFilter: Record<string, unknown> = {};
+        if (account) accountFilter.accountId = account;
+        if (permission) accountFilter.permission = permission;
+
+        const users = await prisma.user.findMany({
+          where: {
+            ...where,
+            ...(Object.keys(accountFilter).length && {
+              accountUsers: { some: accountFilter },
+            }),
+          },
+          include: {
+            accountUsers: account
+              ? { where: { accountId: account } }
+              : true,
+          },
+        });
+
+        if (!users.length) {
+          return id || email || social ? undefined : [];
         }
 
-        return id || email || social ? data[0] : data;
+        const formatted = users.map((u) => {
+          const au = account
+            ? u.accountUsers.find((a) => a.accountId === account)
+            : u.accountUsers[0];
+          return formatUser(
+            u as unknown as Record<string, unknown>,
+            account || u.defaultAccount,
+            au
+              ? { permission: au.permission, onboarded: au.onboarded }
+              : undefined,
+          );
+        });
+
+        return id || email || social ? formatted[0] : formatted;
       },
     },
     account: {
-      /*
-       * user.account()
-       * get a list of accounts this user is attached to
-       */
       get: async ({ id }: { id: string; permission?: string }) => {
-        const data = await this.model.aggregate([
-          { $match: { id: id } },
-          { $project: { id: 1, account: 1, email: 1 } },
-          {
-            $lookup: {
-              from: "account",
-              localField: "account.id",
-              foreignField: "id",
-              as: "account_data",
-            },
-          },
-        ]);
-
-        return data[0]?.account.map((a) => {
-          return {
-            id: a.id,
-            user_id: data[0].id,
-            permission: a.permission,
-            name: data[0].account_data.find((x) => x.id === a.id)?.name,
-          };
+        const accountUsers = await prisma.accountUser.findMany({
+          where: { userId: id },
+          include: { account: true },
         });
+
+        return accountUsers.map((au) => ({
+          id: au.accountId,
+          user_id: id,
+          permission: au.permission,
+          name: au.account.name,
+        }));
       },
 
-      /*
-       * user.account.add()
-       * assign a user to an account
-       */
       add: async ({
         id,
         account,
@@ -175,57 +172,46 @@ export class User extends Model<IUserDocument> {
         account: string;
         permission: string;
       }) => {
-        const data = await this.model.findOne({ id: id });
+        const user = await prisma.user.findFirst({ where: { id } });
+        if (!user) throw { message: `No user with that ID` };
 
-        if (data) {
-          data.account.push({
-            id: account,
-            permission: permission,
+        return await prisma.accountUser.upsert({
+          where: {
+            accountId_userId: { accountId: account, userId: id },
+          },
+          create: {
+            accountId: account,
+            userId: id,
+            permission,
             onboarded: false,
-          });
-          data.markModified("account");
-          return await data.save();
-        }
-
-        throw { message: `No user with that ID` };
+          },
+          update: { permission },
+        });
       },
 
-      /*
-       * user.account.delete()
-       * remove a user from an account
-       */
       delete: async ({ id, account }: { id: string; account: string }) => {
-        const data = await this.model.findOne({ id: id });
+        const user = await prisma.user.findFirst({ where: { id } });
+        if (!user) throw { message: `No user with that ID` };
 
-        if (data) {
-          data.account.splice(
-            data.account.findIndex((x) => x.id === account),
-            1,
-          );
-          data.markModified("account");
-          return await data.save();
-        }
-
-        throw { message: `No user with that ID` };
+        return await prisma.accountUser.delete({
+          where: {
+            accountId_userId: { accountId: account, userId: id },
+          },
+        });
       },
     },
     password: {
-      /*
-       * user.password()
-       * return the user hash
-       */
       password: async ({ id, account }: { id: string; account: string }) => {
-        return await this.model
-          .findOne({ id: id, "account.id": account })
-          .select({
-            password: 1,
-          });
+        const user = await prisma.user.findFirst({
+          where: {
+            id,
+            accountUsers: { some: { accountId: account } },
+          },
+          select: { password: true },
+        });
+        return user;
       },
 
-      /*
-       * user.password.verify()
-       * check the password against the hash stored in the database
-       */
       verify: async ({
         id,
         account,
@@ -235,47 +221,33 @@ export class User extends Model<IUserDocument> {
         account: string;
         password: string;
       }) => {
-        const data = await this.model
-          .findOne({
-            id: id,
-            "account.id": account,
-          })
-          .select({
-            name: 1,
-            email: 1,
-            password: 1,
-          });
+        const data = await prisma.user.findFirst({
+          where: {
+            id,
+            accountUsers: { some: { accountId: account } },
+          },
+          select: { name: true, email: true, password: true },
+        });
 
         const verified = data?.password
           ? await bcrypt.compare(password, data.password)
           : false;
 
-        delete data.password;
-        return verified ? data : false;
+        if (!verified || !data) return false;
+
+        return { name: data.name, email: data.email };
       },
 
-      /*
-       * user.password.save()
-       * save a new password for the user
-       * if not executed via a password reset request, the user is notified
-       * by email that their password has been changed
-       * passwordReset: true/false to determine of password update is part of reset
-       */
       save: async ({ id, password }: { id: string; password: string }) => {
         const salt = await bcrypt.genSalt(10);
         const hash = await bcrypt.hash(password, salt);
-        return await this.model.findOneAndUpdate(
-          { id: id },
-          { password: hash },
-        );
+        return await prisma.user.update({
+          where: { id },
+          data: { password: hash },
+        });
       },
     },
     update: {
-      /*
-       * user.update()
-       * update the user profile
-       * profile: object containing the user data to be saved
-       */
       update: async ({
         id,
         account,
@@ -283,106 +255,126 @@ export class User extends Model<IUserDocument> {
       }: {
         id: string;
         account: string;
-        data: any;
+        data: Record<string, unknown>;
       }) => {
-        if (data.onboarded || data.permission) {
-          const doc = await this.model.findOne({
-            id: id,
-            "account.id": account,
+        if (data.onboarded !== undefined || data.permission) {
+          const doc = await prisma.user.findFirst({
+            where: {
+              id,
+              accountUsers: { some: { accountId: account } },
+            },
           });
           if (!doc) throw { message: `No user with that ID` };
 
-          const index = doc.account.findIndex((x) => x.id === account);
+          const accountUserUpdate: Record<string, unknown> = {};
+          if (data.onboarded !== undefined) {
+            accountUserUpdate.onboarded = data.onboarded;
+          }
+          if (data.permission) {
+            accountUserUpdate.permission = data.permission;
+          }
 
-          if (data.onboarded) doc.account[index].onboarded = data.onboarded;
+          await prisma.accountUser.update({
+            where: {
+              accountId_userId: { accountId: account, userId: id },
+            },
+            data: accountUserUpdate,
+          });
+        }
 
-          if (data.permission) doc.account[index].permission = data.permission;
+        const userUpdate: Record<string, unknown> = { ...data };
+        delete userUpdate.onboarded;
+        delete userUpdate.permission;
 
-          doc.markModified("account");
-          doc.save();
-        } else {
-          await this.model.findOneAndUpdate(
-            { id: id, "account.id": account },
-            data,
-          );
+        if (Object.keys(userUpdate).length) {
+          const prismaData: Record<string, unknown> = {};
+          if (userUpdate.name !== undefined) prismaData.name = userUpdate.name;
+          if (userUpdate.email !== undefined) prismaData.email = userUpdate.email;
+          if (userUpdate.disabled !== undefined) prismaData.disabled = userUpdate.disabled;
+          if (userUpdate.support_enabled !== undefined) {
+            prismaData.supportEnabled = userUpdate.support_enabled;
+          }
+          if (userUpdate["2fa_enabled"] !== undefined) {
+            prismaData.twoFaEnabled = userUpdate["2fa_enabled"];
+          }
+          if (userUpdate["2fa_secret"] !== undefined) {
+            prismaData.twoFaSecret = userUpdate["2fa_secret"];
+          }
+          if (userUpdate.last_active !== undefined) {
+            prismaData.lastActive = userUpdate.last_active;
+          }
+          if (userUpdate.default_account !== undefined) {
+            prismaData.defaultAccount = userUpdate.default_account;
+          }
+
+          if (Object.keys(prismaData).length) {
+            await prisma.user.update({ where: { id }, data: prismaData });
+          }
         }
 
         return data;
       },
     },
     deleteUser: {
-      /*
-       * user.delete()
-       * delete the user
-       */
       deleteUser: async ({ id, account }: { id: string; account: string }) => {
-        return await this.model.deleteMany({
-          ...(id && { id: id }),
-          "account.id": account,
+        if (account) {
+          return await prisma.accountUser.deleteMany({
+            where: { userId: id, accountId: account },
+          });
+        }
+        return await prisma.user.deleteMany({ where: { id } });
+      },
+    },
+    "2fa": {
+      secret: async ({ id, email }: { id?: string; email?: string }) => {
+        const data = await prisma.user.findFirst({
+          where: {
+            ...(id && { id }),
+            ...(email && { email: { equals: email, mode: "insensitive" } }),
+          },
+          select: { twoFaSecret: true },
         });
-      },
-    },
-    twoFactorSecret: {
-      /*
-       * user.2fa.secret()
-       * return the decrypted 2fa secret
-       */
-      twoFactorSecret: async ({
-        id,
-        email,
-      }: {
-        id?: string;
-        email?: string;
-      }) => {
-        const data = await this.model
-          .findOne({
-            ...(id && { id: id }),
-            ...(email && { email: email }),
-          })
-          .select({ "2fa_secret": 1 });
 
-        return data ? crypto.decrypt(data["2fa_secret"]) : null;
+        return data?.twoFaSecret ? crypto.decrypt(data.twoFaSecret) : null;
       },
-    },
-    twoFactorBackup: {
-      /*
-       * user.2fa.backup.save()
-       * hash and save the users backup code
-       */
-      save: async ({ id, code }: { id: string; code: string }) => {
-        const salt = await bcrypt.genSalt(10);
-        const hash = await bcrypt.hash(code, salt);
-        return await this.model.findOneAndUpdate(
-          { id: id },
-          { "2fa_backup_code": hash },
-        );
-      },
+      backup: {
+        save: async ({ id, code }: { id: string; code: string }) => {
+          const salt = await bcrypt.genSalt(10);
+          const hash = await bcrypt.hash(code, salt);
+          return await prisma.user.update({
+            where: { id },
+            data: { twoFaBackupCode: hash },
+          });
+        },
 
-      /*
-       * user.2fa.backup.verify()
-       * verify the users 2fa backup code
-       */
-      verify: async ({
-        id,
-        email,
-        account,
-        code,
-      }: {
-        id?: string;
-        email?: string;
-        account?: string;
-        code: string;
-      }) => {
-        const data = await this.model
-          .findOne({
-            ...(id && { id: id, "account.id": account }),
-            ...(email && { email: email }),
-          })
-          .select({ "2fa_backup_code": 1 });
+        verify: async ({
+          id,
+          email,
+          account,
+          code,
+        }: {
+          id?: string;
+          email?: string;
+          account?: string;
+          code: string;
+        }) => {
+          const data = await prisma.user.findFirst({
+            where: {
+              ...(id && {
+                id,
+                ...(account && {
+                  accountUsers: { some: { accountId: account } },
+                }),
+              }),
+              ...(email && { email: { equals: email, mode: "insensitive" } }),
+            },
+            select: { twoFaBackupCode: true },
+          });
 
-        return data?.["2fa_backup_code"]
-          ? await bcrypt.compare(code, data["2fa_backup_code"])
-          : false;
+          return data?.twoFaBackupCode
+            ? await bcrypt.compare(code, data.twoFaBackupCode)
+            : false;
+        },
       },
     },
   };

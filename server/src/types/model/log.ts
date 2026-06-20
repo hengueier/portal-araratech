@@ -1,6 +1,4 @@
-import mongoose, { Document, Model, Schema } from "mongoose";
-
-export interface LogDocument extends Document {
+export interface LogDocument {
   id: string;
   time: Date;
   message?: string;

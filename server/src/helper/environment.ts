@@ -13,11 +13,8 @@ const required = [
   ["SESSION_SECRET", process.env.SESSION_SECRET, []],
   ["TOKEN_SECRET", process.env.TOKEN_SECRET, []],
   ["CRYPTO_SECRET", process.env.CRYPTO_SECRET, []],
-  ["DB_USER", process.env.DB_USER, []],
-  ["DB_PASSWORD", process.env.DB_PASSWORD, []],
-  ["DB_HOST", process.env.DB_HOST, []],
-  ["DB_NAME", process.env.DB_NAME, []],
-  ["DB_PROVIDER", process.env.DB_PROVIDER, ["mongodb+srv", "mongodb"]],
+  ["DATABASE_URL", process.env.DATABASE_URL, []],
+  ["DB_PROVIDER", process.env.DB_PROVIDER, ["postgresql"]],
 ];
 
 const optional = [

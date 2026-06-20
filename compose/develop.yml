@@ -8,12 +8,17 @@ services:
     restart: always
     environment:
       - DOCKER=y
+      - DATABASE_URL=postgresql://db_admin:db_admin@postgres:5432/portal_araratech
+      - DB_PROVIDER=postgresql
     volumes:
       - ./server/src:/usr/src/app/server/src:rw
     ports:
       - "8080:8080"
     env_file:
       - ./server/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - app
 
@@ -28,10 +33,15 @@ services:
       - ./mission-control/src:/usr/src/app/mission-control/src:rw
     environment:
       - DOCKER=y
+      - DATABASE_URL=postgresql://db_admin:db_admin@postgres:5432/portal_araratech
+      - DB_PROVIDER=postgresql
     ports:
       - "5001:5001"
     env_file:
       - ./mission-control/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - app
 
@@ -63,20 +73,26 @@ services:
     networks:
       - app
 
-  mongo:
-    image: mongo:6-jammy
-    container_name: mongo_db
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_db
     restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: db_admin
-      MONGO_INITDB_ROOT_PASSWORD: db_admin
+      POSTGRES_USER: db_admin
+      POSTGRES_PASSWORD: db_admin
+      POSTGRES_DB: portal_araratech
     ports:
-      - "27017:27017"
+      - "5432:5432"
     volumes:
-      - db:/data/db
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - app
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U db_admin -d portal_araratech"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
-  db:
+  postgres_data:
     driver: local

@@ -186,10 +186,9 @@ class AccountController extends Controller implements IAccountController {
     }
 
     console.log("✅ Customer added to plan");
-    Database.Log.create.new({
+    Database.Log.custom.create.new({
       message: "Customer added to plan",
       body: { plan: plan },
-      time: new Date(),
       req: req,
     });
     res

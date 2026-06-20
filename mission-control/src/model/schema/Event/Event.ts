@@ -1,31 +1,6 @@
-import mongoose, { Document, Schema, Model } from "mongoose";
-import { IUser } from "../User/IUser";
+import prisma from "../../prisma";
 
-// Define Event schema
-interface IEvent extends Document {
-  id: string;
-  name: string;
-  metadata?: Record<string, any>;
-  time: Date;
-  user_id?: string;
-  account_id?: string;
-  email?: string;
-}
-
-const EventSchema: Schema<IEvent> = new Schema({
-  id: { type: String, required: true, unique: true },
-  name: { type: String, required: true },
-  metadata: { type: Object },
-  time: { type: Date, required: true },
-  user_id: { type: String },
-  account_id: { type: String },
-  email: { type: String },
-});
-
-const Event: Model<IEvent> = mongoose.model<IEvent>("Event", EventSchema, "event");
-
-// Define the filter interface
-interface IFilter {
+interface Filter {
   search?: string;
   group?: string;
   limit?: number;
@@ -33,125 +8,115 @@ interface IFilter {
   name?: string;
 }
 
-// Define the get function
-export const get = async function ({ id, filter }: { id?: string; filter: IFilter }) {
-  let data: any[] = [];
-  let total = 0;
-
-  // Get one event by id
+export const get = async ({
+  id,
+  filter,
+}: {
+  id?: string;
+  filter: Filter;
+}) => {
   if (id) {
-    const event = await Event.findOne({ id }).lean();
-    if (event) {
-      const user = await mongoose.model<IUser>("User").findOne({ id: event.user_id }).select({ email: 1 }).lean();
-      event.email = user?.email;
-      delete event._id;
-      delete event.__v;
-      delete event.user_id;
-      return [event];
-    }
+    const event = await prisma.event.findFirst({ where: { id } });
+    if (!event) return [];
+
+    const user = await prisma.user.findFirst({
+      where: { id: event.userId || "" },
+      select: { email: true },
+    });
+
+    return [
+      {
+        id: event.id,
+        name: event.name,
+        time: event.time,
+        email: user?.email,
+      },
+    ];
   }
 
-  // Group by event name
   if (filter.group) {
-    data = await Event.aggregate([
-      { $match: { name: { $regex: filter.search || '', $options: "i" } } },
-      {
-        $group: {
-          _id: `$${filter.group}`,
-          total_triggers: { $sum: 1 },
-        },
-      },
-    ]);
+    const events = await prisma.event.findMany({
+      where: filter.search
+        ? { name: { contains: filter.search, mode: "insensitive" } }
+        : {},
+    });
 
-    if (data.length) {
-      data = data.map(e => ({
-        name: e._id,
-        total_triggers: e.total_triggers,
-      }));
-    }
-  } else {
-    data = await Event.aggregate([
-      { $limit: filter.limit || 10 },
-      { $skip: filter.offset || 0 },
-      { $match: { name: filter.name || '' } },
-      {
-        $project: {
-          id: 1,
-          name: 1,
-          time: 1,
-          email: 1,
-          user: 1,
-          user_id: 1,
-        },
-      },
-      {
-        $lookup: {
-          from: "user",
-          as: "user",
-          let: { id: "$user_id" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ["$id", "$$id"] },
-                    { $regexMatch: { input: "$email", regex: filter.search || '' } },
-                  ],
-                },
-              },
-            },
-          ],
-        },
-      },
-    ]);
+    const grouped: Record<string, number> = {};
+    events.forEach((e) => {
+      const key =
+        filter.group === "name"
+          ? e.name
+          : String((e as Record<string, unknown>)[filter.group as string] || "");
+      grouped[key] = (grouped[key] || 0) + 1;
+    });
 
-    if (data.length) {
-      total = await Event.countDocuments({ name: filter.name || '' });
-      if (filter.search) data = data.filter(e => e.user?.length);
-      data = data.map(e => ({
-        id: e.id,
-        name: e.name,
-        time: e.time,
-        user_email: e.user?.[0]?.email || null,
-      }));
-    }
+    return Object.entries(grouped).map(([name, total_triggers]) => ({
+      name,
+      total_triggers,
+    }));
   }
 
-  return {
-    results: data,
-    total,
-  };
-};
+  const where: Record<string, unknown> = {};
+  if (filter.name) where.name = filter.name;
 
-// Define the times function
-export const times = async function (name: string) {
-  let data = await Event.aggregate([
-    { $match: { name } },
-    {
-      $group: {
-        _id: { $dateToString: { format: "%Y-%m-%d", date: "$time" } },
-        value: { $sum: 1 },
-      },
-    },
+  const [data, total] = await Promise.all([
+    prisma.event.findMany({
+      where,
+      skip: filter.offset || 0,
+      take: filter.limit || 10,
+      orderBy: { time: "desc" },
+      include: { user: { select: { email: true } } },
+    }),
+    prisma.event.count({ where }),
   ]);
 
-  if (data.length) {
-    data = data
-      .sort((a, b) => new Date(a._id).getTime() - new Date(b._id).getTime())
-      .map(e => ({
-        time: e._id,
-        total: e.value,
-      }));
+  let results = data.map((e) => ({
+    id: e.id,
+    name: e.name,
+    time: e.time,
+    user_email: e.user?.email || null,
+  }));
+
+  if (filter.search) {
+    const search = filter.search.toLowerCase();
+    results = results.filter((e) =>
+      e.user_email?.toLowerCase().includes(search),
+    );
   }
 
-  return data;
+  return { results, total };
 };
 
-// Define the delete function
-export const deleteEvent = async function ({ id, name }: { id?: string; name?: string }) {
+export const times = async (name: string) => {
+  const data = await prisma.$queryRaw<Array<{ time: string; total: bigint }>>`
+    SELECT TO_CHAR(time, 'YYYY-MM-DD') as time, COUNT(*)::bigint as total
+    FROM event
+    WHERE name = ${name}
+    GROUP BY TO_CHAR(time, 'YYYY-MM-DD')
+    ORDER BY time ASC
+  `;
+
+  return data.map((e) => ({
+    time: e.time,
+    total: Number(e.total),
+  }));
+};
+
+export const deleteEvent = async ({
+  id,
+  name,
+}: {
+  id?: string;
+  name?: string;
+}) => {
   if (!id && !name) throw new Error("Please provide an event ID or name");
 
-  await Event.deleteOne({ id, name });
+  await prisma.event.deleteMany({
+    where: {
+      ...(id && { id }),
+      ...(name && { name }),
+    },
+  });
 
   return id;
 };

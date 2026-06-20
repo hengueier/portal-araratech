@@ -62,15 +62,10 @@ export function SetupDatabase(props) {
     client: {
       label: 'Client',
       type: 'select',
-      default: 'mysql2',
+      default: 'pg',
       required: true,
       options: [
-        { value: 'mysql2', label: 'MySQL' },
-        { value: 'mongo', label: 'MongoDB' },
-        { value: 'pg', label: 'Postgres' },
-        { value: 'sqlite3', label: 'Sqlite3' },
-        { value: 'mssql', label: 'MSSQL' },
-        { value: 'oracledb', label: 'Oracle DB' },
+        { value: 'pg', label: 'PostgreSQL' },
       ],
       errorMessage: 'Please select a database client'
     }

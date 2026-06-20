@@ -1,11 +1,10 @@
-import { Document } from "mongoose";
-
-export interface AccountDocument extends Document {
+export interface AccountDocument {
   id: string;
-  plan: string;
+  plan?: string;
   name?: string;
+  email?: string;
   active: boolean;
   stripe_subscription_id?: string;
   stripe_customer_id?: string;
-  date_created: Date;
+  date_created?: Date;
 }

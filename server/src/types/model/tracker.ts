@@ -1,5 +1,3 @@
-import mongoose, { Document, Schema, Model } from "mongoose";
-
 export interface TrackEntry {
   path: string;
   permission: string | null;
@@ -7,7 +5,7 @@ export interface TrackEntry {
   created_at: Date;
 }
 
-export interface TrackerDocument extends Document {
+export interface TrackerDocument {
   account_id: string;
   user_id: string;
   track: TrackEntry[];

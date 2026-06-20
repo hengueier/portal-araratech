@@ -1,29 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcrypt";
-import mongoose, { Document, Schema, Model } from "mongoose";
+import prisma from "../../prisma";
 import { IUser } from "./IUser";
 
-// define schema
-const UserSchema: Schema = new Schema({
-  id: { type: String, required: true, unique: true },
-  name: { type: String, required: true },
-  email: { type: String, required: true },
-  password: { type: String },
-  date_created: { type: Date, default: Date.now },
-  last_active: { type: Date, default: Date.now },
-  disabled: { type: Boolean },
-  support_enabled: { type: Boolean, required: true },
-  "2fa_enabled": { type: Boolean, required: true },
-  "2fa_secret": { type: String },
-  "2fa_backup_code": { type: String },
-  default_account: { type: String, required: true },
-  facebook_id: { type: String },
-  twitter_id: { type: String },
-  account: { type: Array },
-});
-
-const User: Model<IUser> = mongoose.model<IUser>("User", UserSchema, "user");
-export const schema = User;
+export const schema = { name: "User" };
 
 interface CreateUserParams {
   user: {
@@ -37,17 +17,17 @@ interface CreateUserParams {
 }
 
 export const create = async function ({ user, account }: CreateUserParams) {
-  const data: { [key: string]: any } = {
+  const data: Record<string, unknown> = {
     id: uuidv4(),
     name: user.name,
     email: user.email,
-    date_created: new Date(),
-    last_active: new Date(),
-    support_enabled: false,
-    "2fa_enabled": false,
-    facebook_id: user.facebook_id,
-    twitter_id: user.twitter_id,
-    default_account: account,
+    dateCreated: new Date(),
+    lastActive: new Date(),
+    supportEnabled: false,
+    twoFaEnabled: false,
+    facebookId: user.facebook_id,
+    twitterId: user.twitter_id,
+    defaultAccount: account,
   };
 
   if (user.password) {
@@ -55,8 +35,7 @@ export const create = async function ({ user, account }: CreateUserParams) {
     data.password = await bcrypt.hash(user.password, salt);
   }
 
-  const newUser = new User(data);
-  await newUser.save();
+  await prisma.user.create({ data: data as never });
 
   if (data.password) {
     delete data.password;
@@ -73,10 +52,25 @@ interface GetUserParams {
 }
 
 export const get = async function ({ id = null, email = null }: GetUserParams) {
-  return await User.find({
-    ...(id && { id }),
-    ...(email && { email }),
-  }).select({ _id: 0, __v: 0, password: 0 });
+  return await prisma.user.findMany({
+    where: {
+      ...(id && { id }),
+      ...(email && { email: { equals: email, mode: "insensitive" } }),
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      dateCreated: true,
+      lastActive: true,
+      disabled: true,
+      supportEnabled: true,
+      twoFaEnabled: true,
+      defaultAccount: true,
+      facebookId: true,
+      twitterId: true,
+    },
+  });
 };
 
 interface UpdateUserParams {
@@ -85,7 +79,12 @@ interface UpdateUserParams {
 }
 
 export const update = async function ({ id, data }: UpdateUserParams) {
-  await User.findOneAndUpdate({ id }, data);
+  const prismaData: Record<string, unknown> = {};
+  if (data.name !== undefined) prismaData.name = data.name;
+  if (data.email !== undefined) prismaData.email = data.email;
+  if (data.disabled !== undefined) prismaData.disabled = data.disabled;
+
+  await prisma.user.update({ where: { id }, data: prismaData });
   return data;
 };
 
@@ -97,22 +96,24 @@ interface AddAccountParams {
   permission: string;
 }
 
-export const addAccount = async function ({ id, account, permission }: AddAccountParams) {
-  const data = await User.findOne({ id });
+export const addAccount = async function ({
+  id,
+  account,
+  permission,
+}: AddAccountParams) {
+  const user = await prisma.user.findFirst({ where: { id } });
+  if (!user) throw { message: `No user with that ID` };
 
-  if (data) {
-    data.account?.push({
-      id: account,
+  return await prisma.accountUser.create({
+    data: {
+      accountId: account,
+      userId: id,
       permission,
       onboarded: false,
-    });
-    data.markModified("account");
-    return await data.save();
-  }
-
-  throw { message: `No user with that ID` };
+    },
+  });
 };
 
 export const deleteUser = async function (id: string) {
-  return await User.findOneAndRemove({ id });
+  return await prisma.user.delete({ where: { id } });
 };

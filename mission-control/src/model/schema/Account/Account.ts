@@ -1,39 +1,33 @@
 import { v4 as uuidv4 } from "uuid";
-import mongoose, { Document, Model } from "mongoose";
-const { Schema } = mongoose;
-
+import prisma from "../../prisma";
 import { IAccount } from "./IAccount";
 
-const AccountSchema = new Schema<IAccount>({
-  id: { type: String, required: true, unique: true },
-  plan: { type: String },
-  name: { type: String },
-  active: { type: Boolean, required: true },
-  stripe_subscription_id: { type: String },
-  stripe_customer_id: { type: String },
-  date_created: { type: Date, required: true },
-});
-
-const Account: Model<IAccount> = mongoose.model<IAccount>("Account", AccountSchema, "account");
-export const schema = Account;
+export const schema = { name: "Account" };
 
 interface CreateAccountInput {
   name?: string;
   plan?: string;
 }
 
-export const create = async function (account: CreateAccountInput): Promise<IAccount> {
-  const data = new Account({
+export const create = async function (
+  account: CreateAccountInput,
+): Promise<IAccount> {
+  const data = {
     id: uuidv4(),
     active: true,
     name: account.name || "My Account",
     plan: account.plan || "free",
-    date_created: new Date(),
-  });
+    dateCreated: new Date(),
+  };
 
-  const newAccount = new Account(data);
-  await newAccount.save();
-  return data;
+  await prisma.account.create({ data });
+  return {
+    id: data.id,
+    active: data.active,
+    name: data.name,
+    plan: data.plan,
+    date_created: data.dateCreated,
+  };
 };
 
 interface GetAccountOutput {
@@ -45,32 +39,20 @@ interface GetAccountOutput {
 }
 
 export const get = async function (): Promise<GetAccountOutput[]> {
-  const data = await Account.aggregate([
-    {
-      $lookup: {
-        from: "user",
-        localField: "id",
-        foreignField: "account.id",
-        as: "user",
+  const accounts = await prisma.account.findMany({
+    include: {
+      accountUsers: {
+        where: { permission: { in: ["owner", "master"] } },
+        include: { user: { select: { email: true } } },
       },
     },
-  ]);
+  });
 
-  if (data.length) {
-    return data.map((a) => {
-      const owner = a.user.filter((u: any) => {
-        return u.account.find((x: any) => x.permission === "owner" || x.permission === "master");
-      });
-
-      return {
-        id: a.id,
-        email: owner?.[0]?.email,
-        plan: a.plan,
-        active: a.active,
-        date_created: a.date_created,
-      };
-    });
-  }
-
-  return data;
+  return accounts.map((a) => ({
+    id: a.id,
+    email: a.accountUsers[0]?.user.email,
+    plan: a.plan || undefined,
+    active: a.active,
+    date_created: a.dateCreated,
+  }));
 };

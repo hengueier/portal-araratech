@@ -1,5 +1,3 @@
-import { Document } from "mongoose";
-
 export interface IToken {
   id: string;
   provider: string;
@@ -7,8 +5,4 @@ export interface IToken {
   access?: string;
   refresh?: string;
   user_id: string;
-}
-
-export interface ITokenDocument extends Omit<IToken, "id">, Document {
-  id: string;
 }

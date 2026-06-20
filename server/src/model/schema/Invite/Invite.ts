@@ -1,28 +1,14 @@
-import randomstring from "randomstring";
+import prisma from "../../prisma";
 import Model from "../Model";
-import { IInviteDocument } from "./IInvite";
+import { IInvite } from "./IInvite";
 
-export class Invite extends Model<IInviteDocument> {
+export class Invite extends Model<IInvite> {
   constructor() {
-    super(
-      {
-        id: { type: String, required: true, unique: true },
-        email: { type: String, required: true },
-        permission: { type: String, required: true },
-        account_id: { type: String, required: true },
-        date_sent: { type: Date, required: true },
-        used: { type: Boolean, required: true },
-      },
-      "Invite",
-    );
+    super(prisma.invite as never);
   }
 
   public custom = {
     create: {
-      /*
-       * invite.create()
-       * create a new user invite to join an account
-       */
       create: async ({
         email,
         permission,
@@ -32,24 +18,23 @@ export class Invite extends Model<IInviteDocument> {
         permission?: string;
         account: string;
       }) => {
-        // create a new invite
         const data = {
           email,
           used: false,
           permission: permission || "user",
-          date_sent: new Date(),
-          account_id: account,
+          dateSent: new Date(),
+          accountId: account,
         };
 
-        await this.create.new(data);
-        return data;
+        await this.create.new(data as Partial<IInvite>);
+        return {
+          ...data,
+          date_sent: data.dateSent,
+          account_id: data.accountId,
+        };
       },
     },
     read: {
-      /*
-       * invite.get()
-       * return the invite for the new user
-       */
       get: async ({
         id,
         email,
@@ -61,38 +46,46 @@ export class Invite extends Model<IInviteDocument> {
         account?: string;
         returnArray?: boolean;
       }) => {
-        const data = await this.model.find({
-          ...(id && { id: id }),
-          ...(email && { email: email }),
-          ...(account && { account_id: account }),
-          used: false,
+        const data = await prisma.invite.findMany({
+          where: {
+            ...(id && { id }),
+            ...(email && { email }),
+            ...(account && { accountId: account }),
+            used: false,
+          },
         });
 
-        return data.length ? (returnArray ? data : data[0]) : null;
+        const formatted = data.map((i) => ({
+          ...i,
+          date_sent: i.dateSent,
+          account_id: i.accountId,
+        }));
+
+        return formatted.length
+          ? returnArray
+            ? formatted
+            : formatted[0]
+          : null;
       },
     },
     update: {
-      /*
-       * invite.update()
-       * update the invite
-       */
       update: async ({
         id,
         data,
       }: {
         id: string;
-        data: Partial<IInviteDocument>;
+        data: Partial<IInvite>;
       }) => {
-        // set invite status to used so it can't be used again
-        await this.model.updateOne({ id: id }, data);
+        const prismaData: Record<string, unknown> = {};
+        if (data.used !== undefined) prismaData.used = data.used;
+        if (data.permission !== undefined) prismaData.permission = data.permission;
+        if (data.email !== undefined) prismaData.email = data.email;
+
+        await prisma.invite.update({ where: { id }, data: prismaData });
         return data;
       },
     },
     delete: {
-      /*
-       * invite.delete()
-       * delete an invite
-       */
       deleteInvite: async ({
         id,
         account,
@@ -100,7 +93,9 @@ export class Invite extends Model<IInviteDocument> {
         id: string;
         account: string;
       }) => {
-        return await this.model.deleteOne({ id: id, account_id: account });
+        return await prisma.invite.deleteMany({
+          where: { id, accountId: account },
+        });
       },
     },
   };

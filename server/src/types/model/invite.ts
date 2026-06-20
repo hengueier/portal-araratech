@@ -1,6 +1,4 @@
-import mongoose, { Document, Model, Schema } from "mongoose";
-
-export interface InviteDocument extends Document {
+export interface InviteDocument {
   id: string;
   email: string;
   permission: string;

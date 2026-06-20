@@ -1,90 +1,138 @@
 import { v4 as uuidv4 } from "uuid";
-import mongoose, {
-  Schema,
-  Document,
-  Model as MongooseModel,
-  SchemaDefinition,
-  FilterQuery,
-  UpdateQuery,
-  ProjectionType,
-  UpdateWriteOpResult,
-  SortOrder,
-} from "mongoose";
-import MongoBuilder from "../../helper/MongoBuilder";
+import prisma from "../prisma";
 
-type PlainDocument<T> = Omit<T, keyof Document>;
+type PrismaDelegate = {
+  create: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  createMany: (args: Record<string, unknown>) => Promise<{ count: number }>;
+  findMany: (args?: Record<string, unknown>) => Promise<Record<string, unknown>[]>;
+  findFirst: (
+    args?: Record<string, unknown>,
+  ) => Promise<Record<string, unknown> | null>;
+  update: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  updateMany: (args: Record<string, unknown>) => Promise<{ count: number }>;
+  delete: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  deleteMany: (args: Record<string, unknown>) => Promise<{ count: number }>;
+  count: (args?: Record<string, unknown>) => Promise<number>;
+};
 
-export default abstract class Model<T extends Document> {
-  protected model: MongooseModel<T>;
+function mapToPrismaFields(
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  const mapped: Record<string, unknown> = { ...data };
 
-  constructor(
-    schema: SchemaDefinition<T>,
-    modelName: string,
-    timestamps = false,
-  ) {
-    const model = mongoose.model<T>(
-      modelName,
-      new Schema<T>(schema, { timestamps }),
-      modelName.toLowerCase(),
-    );
-    this.model = model;
+  const fieldMap: Record<string, string> = {
+    account_id: "accountId",
+    user_id: "userId",
+    date_created: "dateCreated",
+    date_sent: "dateSent",
+    last_active: "lastActive",
+    support_enabled: "supportEnabled",
+    "2fa_enabled": "twoFaEnabled",
+    "2fa_secret": "twoFaSecret",
+    "2fa_backup_code": "twoFaBackupCode",
+    default_account: "defaultAccount",
+    facebook_id: "facebookId",
+    twitter_id: "twitterId",
+    stripe_subscription_id: "stripeSubscriptionId",
+    stripe_customer_id: "stripeCustomerId",
+  };
+
+  for (const [from, to] of Object.entries(fieldMap)) {
+    if (from in mapped) {
+      mapped[to] = mapped[from];
+      delete mapped[from];
+    }
+  }
+
+  return mapped;
+}
+
+export default abstract class Model<T = Record<string, unknown>> {
+  protected delegate: PrismaDelegate;
+
+  constructor(delegate: PrismaDelegate) {
+    this.delegate = delegate;
   }
 
   public create: {
-    new: (document: PlainDocument<T>) => Promise<T>;
+    new: (document: Partial<T>, id?: string) => Promise<T>;
     batch: (
-      documents: Array<PlainDocument<T>>,
-      ordered: boolean,
+      documents: Array<Partial<T>>,
+      ordered?: boolean,
       accountId?: string,
     ) => Promise<Array<T>>;
   } = {
     new: async (document, id = uuidv4()) => {
-      return await this.model.create({ id, ...document });
+      const result = await this.delegate.create({
+        data: mapToPrismaFields({ id, ...document }),
+      });
+      return result as T;
     },
 
-    batch: async (documents, ordered = false, accountId = null) => {
-      const documentsWithId = documents.map((document) => ({
-        account_id: accountId,
-        id: uuidv4(),
-        ...document,
-      }));
+    batch: async (documents, _ordered = false, accountId = null) => {
+      const documentsWithId = documents.map((document) =>
+        mapToPrismaFields({
+          accountId,
+          id: uuidv4(),
+          ...document,
+        }),
+      );
 
-      return await this.model.insertMany(documentsWithId, { ordered });
+      await this.delegate.createMany({ data: documentsWithId });
+      return documentsWithId as Array<T>;
     },
   };
 
   public read: {
     all: (
-      query?: FilterQuery<T>,
-      projection?: ProjectionType<T>,
-      sort?: { [key: string]: SortOrder },
+      query?: Record<string, unknown>,
+      projection?: Record<string, unknown>,
+      sort?: Record<string, "asc" | "desc">,
     ) => Promise<Array<T>>;
     one: (
-      query: FilterQuery<T>,
-      projection?: ProjectionType<T>,
+      query: Record<string, unknown>,
+      projection?: Record<string, unknown>,
     ) => Promise<T | null>;
     paginate: (
-      query: FilterQuery<T>,
+      query: Record<string, unknown>,
       limit: number,
       page: number,
-    ) => Promise<T | null>;
+    ) => Promise<{ results: T[]; total: number }>;
     search: (
       options: { filter: string; fields: string[] },
       accountId: string,
       limit?: number,
     ) => Promise<Array<T>>;
   } = {
-    all: async (query = {}, projection = {}, sort = {}) => {
-      return await this.model.find(query, projection).sort(sort);
+    all: async (query = {}, _projection = {}, sort = {}) => {
+      const orderBy = Object.entries(sort).map(([key, direction]) => ({
+        [key]: direction,
+      }));
+
+      const results = await this.delegate.findMany({
+        where: mapToPrismaFields(query),
+        ...(orderBy.length && { orderBy }),
+      });
+
+      return results as T[];
     },
-    one: async (query, projection = {}) => {
-      return await this.model.findOne(query, projection);
+
+    one: async (query, _projection = {}) => {
+      const result = await this.delegate.findFirst({
+        where: mapToPrismaFields(query),
+      });
+      return (result as T) || null;
     },
+
     paginate: async (query, limit, page) => {
-      const mongo = new MongoBuilder(this.model).match(query);
-      await mongo.addPagination(page, limit);
-      await mongo.run();
-      return await mongo.results();
+      const skip = (page - 1) * limit;
+      const mappedQuery = mapToPrismaFields(query);
+      const [results, total] = await Promise.all([
+        this.delegate.findMany({ where: mappedQuery, skip, take: limit }),
+        this.delegate.count({ where: mappedQuery }),
+      ]);
+
+      return { results: results as T[], total };
     },
 
     search: async (
@@ -92,76 +140,93 @@ export default abstract class Model<T extends Document> {
       accountId: string,
       limit = 10,
     ) => {
-      try {
-        const { filter, fields } = options;
+      const { filter, fields } = options;
 
-        if (!filter || filter.trim().length === 0) {
-          throw new Error("Search filter must be provided.");
-        }
-
-        if (!fields || fields.length === 0) {
-          throw new Error("Search fields must be provided.");
-        }
-
-        const regex = new RegExp(filter, "i");
-
-        const searchConditions: any = fields.map((field) => ({
-          [field]: regex,
-        })) as Array<Partial<T>>;
-
-        const results = await this.model
-          .find({
-            account_id: accountId,
-            $or: searchConditions,
-          })
-          .limit(limit);
-
-        return results;
-      } catch (error) {
-        console.error("Error in search function:", error);
-        throw new Error("Search function failed.");
+      if (!filter || filter.trim().length === 0) {
+        throw new Error("Search filter must be provided.");
       }
+
+      if (!fields || fields.length === 0) {
+        throw new Error("Search fields must be provided.");
+      }
+
+      const searchConditions = fields.map((field) => ({
+        [field]: { contains: filter, mode: "insensitive" },
+      }));
+
+      const results = await this.delegate.findMany({
+        where: mapToPrismaFields({
+          accountId,
+          OR: searchConditions,
+        }),
+        take: limit,
+      });
+
+      return results as T[];
     },
   };
 
   public update: {
     one: (
-      query: FilterQuery<T>,
-      update: UpdateQuery<T>,
+      query: Record<string, unknown>,
+      update: Record<string, unknown>,
       opts?: { upsert?: boolean; new?: boolean },
-    ) => Promise<T>;
-
+    ) => Promise<T | null>;
     many: (
-      query: FilterQuery<T>,
-      update: UpdateQuery<T>,
-    ) => Promise<UpdateWriteOpResult>;
+      query: Record<string, unknown>,
+      update: Record<string, unknown>,
+    ) => Promise<{ count: number }>;
   } = {
     one: async (query, update, opts = {}) => {
-      return this.model.findOneAndUpdate(query, update, opts);
+      const mappedQuery = mapToPrismaFields(query);
+      const mappedUpdate = mapToPrismaFields(update);
+
+      if (opts.upsert) {
+        const result = await (this.delegate as unknown as {
+          upsert: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+        }).upsert({
+          where: mappedQuery,
+          create: mapToPrismaFields({ id: uuidv4(), ...query, ...update }),
+          update: mappedUpdate,
+        });
+        return result as T;
+      }
+
+      const existing = await this.delegate.findFirst({ where: mappedQuery });
+      if (!existing) return null;
+
+      const result = await this.delegate.update({
+        where: { id: existing.id as string },
+        data: mappedUpdate,
+      });
+      return result as T;
     },
+
     many: async (query, update) => {
-      return this.model.updateMany(query, update);
+      return await this.delegate.updateMany({
+        where: mapToPrismaFields(query),
+        data: mapToPrismaFields(update),
+      });
     },
   };
 
   public delete: {
-    one: (query: FilterQuery<T>) => Promise<any>;
-    many: (query: FilterQuery<T>) => Promise<any>;
+    one: (query: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    many: (query: Record<string, unknown>) => Promise<{ count: number }>;
   } = {
     one: async (query) => {
-      return this.model.deleteOne(query);
+      const existing = await this.delegate.findFirst({
+        where: mapToPrismaFields(query),
+      });
+      if (!existing) return { count: 0 };
+
+      return await this.delegate.delete({ where: { id: existing.id as string } });
     },
+
     many: async (query) => {
-      return this.model.deleteMany(query);
+      return await this.delegate.deleteMany({ where: mapToPrismaFields(query) });
     },
   };
 
-  public custom:
-    | {
-        create: { [key: string]: (...args: any[]) => Promise<any> };
-        read: { [key: string]: (...args: any[]) => Promise<any> };
-        update: { [key: string]: (...args: any[]) => Promise<any> };
-        delete: { [key: string]: (...args: any[]) => Promise<any> };
-      }
-    | {} = {};
+  public custom: Record<string, unknown> = {};
 }

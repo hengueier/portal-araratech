@@ -1,8 +1,9 @@
-import { Document } from "mongoose";
+export interface AuthDocument {
+  id: string;
+}
 
 export interface TokenData {
-  accountId: string;
-  userId: string;
-  permission: string;
   provider: string;
+  data: Record<string, unknown>;
+  user: string;
 }

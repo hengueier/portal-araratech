@@ -6,8 +6,7 @@ import api from "./api";
 import path from "path";
 import config from "config";
 import cors from "cors";
-import * as mongo from "./model/mongo";
-import mongoSanitize from "express-mongo-sanitize";
+import * as database from "./model/database";
 import limiter from "express-rate-limit";
 
 type ThrottleConfig = {
@@ -38,8 +37,6 @@ app.options("*", cors({ origin: process.env.CLIENT_URL }));
 app.use(express.json());
 app.set("trust proxy", 1);
 app.use(express.urlencoded({ extended: true }));
-
-app.use(mongoSanitize());
 
 app.use("/api/", limiter(throttle.api));
 app.use(api);
@@ -74,13 +71,8 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 const server = app.listen(port, async () => {
-  const welcome = () => console.log("Welcome to Sample Mission Control 🕹");
-  const mongoOptions = {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    authSource: "admin",
-  };
-  await mongo.connect(mongoOptions);
+  console.log("Welcome to Sample Mission Control 🕹");
+  await database.connect();
 });
 
 export default server;
