@@ -28,7 +28,17 @@
   "permissions": {
     "master": {
       "master": true,
+      "sales": true,
       "agent": true,
+      "owner": true,
+      "admin": true,
+      "user": true,
+      "developer": true
+    },
+    "sales": {
+      "master": false,
+      "sales": true,
+      "agent": false,
       "owner": true,
       "admin": true,
       "user": true,
@@ -36,6 +46,7 @@
     },
     "agent": {
       "master": false,
+      "sales": false,
       "agent": true,
       "owner": true,
       "admin": true,
@@ -44,6 +55,7 @@
     },
     "owner": {
       "master": false,
+      "sales": false,
       "agent": false,
       "owner": true,
       "admin": true,
@@ -52,6 +64,7 @@
     },
     "admin": {
       "master": false,
+      "sales": false,
       "agent": false,
       "owner": false,
       "admin": true,
@@ -60,6 +73,7 @@
     },
     "user": {
       "master": false,
+      "sales": false,
       "agent": false,
       "owner": false,
       "admin": false,
@@ -68,6 +82,7 @@
     },
     "developer": {
       "master": false,
+      "sales": false,
       "agent": false,
       "owner": false,
       "admin": false,
