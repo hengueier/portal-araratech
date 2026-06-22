@@ -16,19 +16,20 @@ import Style from "./app.module.scss";
 export function AppLayout(props) {
   // context & style
   const context = useContext<any>(AuthContext); // TODO: Type this
-  console.log("AppLayout props:", props);
-  console.log("AuthContext data:", context);
+
+  const navItems = [
+    { label: "Dashboard", icon: "activity", link: "/dashboard" },
+    { label: "Account", icon: "user", link: "/account" },
+    ...(context.permission?.agent
+      ? [{ label: "Chamados", icon: "inbox", link: "/tickets" }]
+      : []),
+    { label: "Help", icon: "help-circle", link: "/help" },
+    { label: "Sign Out", icon: "log-out", action: context.signout },
+  ];
 
   return (
     <Fragment>
-      <AppNav
-        items={[
-          { label: "Dashboard", icon: "activity", link: "/dashboard" },
-          { label: "Account", icon: "user", link: "/account" },
-          { label: "Help", icon: "help-circle", link: "/help" },
-          { label: "Sign Out", icon: "log-out", action: context.signout },
-        ]}
-      />
+      <AppNav items={navItems} />
 
       <main className={Style.app}>
         <Header title={props.title}>

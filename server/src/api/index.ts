@@ -8,6 +8,7 @@ import feedback from "./feedback";
 import invite from "./invite";
 import key from "./key";
 import pushtoken from "./pushtoken";
+import ticket from "./ticket";
 import user from "./user";
 import utility from "./utility";
 
@@ -21,6 +22,7 @@ const api = [
   invite,
   key,
   pushtoken,
+  ticket,
   user,
   preview,
   utility,

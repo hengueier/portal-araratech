@@ -1,5 +1,7 @@
 import { Dashboard } from "@/views/dashboard/dashboard";
 import { Help } from "@/views/dashboard/help";
+import { Tickets } from "@/views/dashboard/tickets";
+import { TicketDetail } from "@/views/dashboard/ticket-detail";
 import { OnboardingView } from "@/views/onboarding/onboarding";
 
 interface AppRoutes {
@@ -31,6 +33,20 @@ const Routes: AppRoutes[] = [
     layout: "app",
     permission: "user",
     title: "Get Help",
+  },
+  {
+    path: "/tickets",
+    view: Tickets,
+    layout: "app",
+    permission: "agent",
+    title: "Chamados",
+  },
+  {
+    path: "/tickets/:id",
+    view: TicketDetail,
+    layout: "app",
+    permission: "agent",
+    title: "Detalhe do Chamado",
   },
 ];
 

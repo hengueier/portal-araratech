@@ -39,19 +39,19 @@
       "master": false,
       "sales": true,
       "agent": false,
-      "owner": true,
-      "admin": true,
+      "owner": false,
+      "admin": false,
       "user": true,
-      "developer": true
+      "developer": false
     },
     "agent": {
       "master": false,
       "sales": false,
       "agent": true,
-      "owner": true,
-      "admin": true,
+      "owner": false,
+      "admin": false,
       "user": true,
-      "developer": true
+      "developer": false
     },
     "owner": {
       "master": false,
