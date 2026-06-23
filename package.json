@@ -3,6 +3,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "setup": "npm install && npm run setup:server & npm run setup:client & npm run setup:mission:server & npm run setup:mission:client && wait",
@@ -27,6 +28,14 @@
     "concurrently": "^9.2.1"
   },
   "devDependencies": {
-    "prisma": "^6.9.0"
+    "@types/bcrypt": "^5.0.2",
+    "@types/node": "^20.19.43",
+    "bcrypt": "^5.1.1",
+    "prisma": "^6.9.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.3"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }
