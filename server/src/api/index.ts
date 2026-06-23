@@ -9,6 +9,7 @@ import invite from "./invite";
 import key from "./key";
 import pushtoken from "./pushtoken";
 import ticket from "./ticket";
+import sales from "./sales";
 import user from "./user";
 import utility from "./utility";
 
@@ -23,6 +24,7 @@ const api = [
   key,
   pushtoken,
   ticket,
+  sales,
   user,
   preview,
   utility,

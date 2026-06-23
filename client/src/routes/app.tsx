@@ -1,5 +1,6 @@
 import { Dashboard } from "@/views/dashboard/dashboard";
 import { Help } from "@/views/dashboard/help";
+import { Sales } from "@/views/dashboard/sales";
 import { Tickets } from "@/views/dashboard/tickets";
 import { TicketDetail } from "@/views/dashboard/ticket-detail";
 import { OnboardingView } from "@/views/onboarding/onboarding";
@@ -33,6 +34,13 @@ const Routes: AppRoutes[] = [
     layout: "app",
     permission: "user",
     title: "Get Help",
+  },
+  {
+    path: "/sales",
+    view: Sales,
+    layout: "app",
+    permission: "sales",
+    title: "Vendas",
   },
   {
     path: "/tickets",

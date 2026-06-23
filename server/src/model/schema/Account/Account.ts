@@ -83,6 +83,33 @@ export class Account extends Model<IAccount> {
           data: subscription,
         };
       },
+      listOwners: async () => {
+        const accounts = await prisma.account.findMany({
+          include: {
+            accountUsers: {
+              where: { permission: { in: ["owner", "master"] } },
+              include: { user: { select: { name: true, email: true } } },
+              take: 1,
+            },
+          },
+          orderBy: { dateCreated: "desc" },
+        });
+
+        return accounts.map((account) => {
+          const owner = account.accountUsers[0]?.user;
+
+          return {
+            id: account.id,
+            account_id: account.id,
+            account_name: account.name,
+            owner_name: owner?.name ?? "",
+            owner_email: owner?.email ?? "",
+            plan: account.plan || "free",
+            plan_active: account.active,
+            date_created: account.dateCreated,
+          };
+        });
+      },
     },
     update: {
       update: async ({

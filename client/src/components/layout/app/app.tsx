@@ -20,6 +20,9 @@ export function AppLayout(props) {
   const navItems = [
     { label: "Dashboard", icon: "activity", link: "/dashboard" },
     { label: "Account", icon: "user", link: "/account" },
+    ...(context.permission?.sales
+      ? [{ label: "Vendas", icon: "users", link: "/sales" }]
+      : []),
     ...(context.permission?.agent
       ? [{ label: "Chamados", icon: "inbox", link: "/tickets" }]
       : []),

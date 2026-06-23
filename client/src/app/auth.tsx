@@ -130,7 +130,11 @@ export function PrivateRoute(props) {
     "/account/upgrade",
     "/account",
     "/account/profile",
+    "/sales",
+    "/tickets",
   ];
+
+  const internalRoles = ["master", "sales", "agent"];
 
   if (user?.token) {
     if (permissions[user.permission][props.permission]) {
@@ -142,7 +146,7 @@ export function PrivateRoute(props) {
       if (
         user.subscription !== "active" &&
         user.subscription !== "trialing" &&
-        user.permission !== "master" &&
+        !internalRoles.includes(user.permission) &&
         !permittedRoutes.includes(path)
       )
         return <Navigate to="/account/billing" />;
