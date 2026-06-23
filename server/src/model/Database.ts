@@ -10,6 +10,7 @@ import {
   Login,
   Token,
   Preview,
+  Plan,
   User,
 } from "./schema";
 dotenv.config();
@@ -38,6 +39,7 @@ abstract class Database {
   public static Login = new Login();
   public static Token = new Token();
   public static Preview = new Preview();
+  public static Plan = new Plan();
   public static User = new User();
 }
 

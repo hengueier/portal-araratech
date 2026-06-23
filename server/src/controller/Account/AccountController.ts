@@ -11,6 +11,7 @@ import {
 import authController from "@/controller/Auth/AuthController";
 import * as mail from "@/helper/mail";
 import Database from "@/model/Database";
+import planService from "@/model/lib/Plan/planService";
 import Controller from "../Controller";
 import { IAccountController } from "./IAccountController";
 
@@ -108,27 +109,27 @@ class AccountController extends Controller implements IAccountController {
 
     validate(data, ["plan"]);
 
-    // check the plan exists
-    const plan = settings.plans.find((x: any) => x.id === data.plan);
+    const plan = await planService.findById(data.plan);
     assert(plan, `Plan doesn't exist`);
 
     const accountData = await Database.Account.custom.read.get(req.account);
     assert(accountData, "No account with that ID");
 
+    const isFree = plan.is_free || data.plan === "free";
+
     // process stripe subscription for non-free accounts
-    // if a 2-factor payment hasn't occurred, create the stripe subscription
-    if (data.plan !== "free") {
+    if (!isFree) {
       if (data.stripe === undefined) {
         assert(data.token?.id, "Please enter your credit card details");
 
-        // create a stripe customer and subscribe them to a plan
         stripeData.customer = await stripe.createCustomer({
           email: accountData.owner_email,
           token: data.token.id,
         });
         stripeData.subscription = await stripe.subscribeCustomer({
           id: stripeData.customer.id,
-          plan: data.plan,
+          priceId: planService.getStripePriceId(plan) || undefined,
+          plan: planService.getStripePriceId(plan) ? undefined : data.plan,
         });
 
         // check for an incomplete payment that requires 2-factor authentication
@@ -173,14 +174,15 @@ class AccountController extends Controller implements IAccountController {
     });
 
     // send email
-    if (data.plan !== "free") {
+    if (!isFree) {
+      const emailPlan = planService.formatPlanForEmail(plan);
       await mail.send({
         to: accountData.owner_email,
         template: "new_plan",
         content: {
           name: accountData.owner_name,
-          plan: plan.name,
-          price: `${plan.currency.symbol}${plan.price}`,
+          plan: emailPlan.name,
+          price: emailPlan.price,
         },
       });
     }
@@ -201,96 +203,26 @@ class AccountController extends Controller implements IAccountController {
     validate(data, ["plan"]);
 
     const accountID = req.permission === "master" ? data.id : req.account;
-    const plan: any = settings.plans.find((x: any) => x.id === data.plan);
-    assert(plan, "No plan with that ID");
 
-    const accountData = await Database.Account.custom.read.get(accountID);
-    assert(accountData, "Account does not exist");
+    try {
+      const result = await planService.assignPlanToAccount(accountID, {
+        plan: data.plan,
+        active: data.active,
+      });
 
-    // user is upgrading from paid to free,
-    // direct them to the upgrade view
-    if (accountData.plan === "free" && plan.id !== "free") {
-      if (req.permission === "master") {
-        throw {
-          message:
-            "The account holder will need to enter their card details and upgrade to a paid plan.",
-        };
-      } else {
-        return res
-          .status(402)
-          .send({ message: "Please upgrade your account", plan: plan.id });
-      }
+      const plan = await planService.findById(data.plan);
+
+      return res.status(200).send({
+        message: `Your account has been updated to the ${plan?.name} plan`,
+        data: { plan: result.plan },
+      });
+    } catch (err: any) {
+      const status = err.status || 500;
+      return res.status(status).send({
+        message: err.message || err,
+        ...(status === 402 && { plan: data.plan }),
+      });
     }
-
-    if (plan.id === "free") {
-      // user is downgrading - cancel the stripe subscription
-      if (accountData.stripe_subscription_id) {
-        const subscription = await stripe.getSubscription(
-          accountData.stripe_subscription_id,
-        );
-        await Database.Account.custom.update.update({
-          id: req.account,
-          data: { stripe_subscription_id: null, plan: plan.id },
-        });
-
-        if (subscription.status !== "canceled")
-          await stripe.deleteSubscription(accountData.stripe_subscription_id);
-      }
-    } else {
-      // user is switching to a different paid plan
-      if (accountData.stripe_subscription_id) {
-        // check for active subscription
-        let subscription = await stripe.getSubscription(
-          accountData.stripe_subscription_id,
-        );
-
-        if (
-          subscription.status === "trialing" ||
-          subscription.status === "active"
-        ) {
-          subscription = await stripe.updateSubscription({
-            subscription: subscription,
-            plan: plan.id,
-          });
-          await Database.Account.custom.update.update({
-            id: accountData.id,
-            data: { plan: plan.id },
-          });
-        } else if (subscription.status === "canceled") {
-          // user previously had a subscription, but is now cancelled - create a new one
-          await Database.Account.custom.update.update({
-            id: req.account,
-            data: { stripe_subscription_id: null, plan: "free" },
-          });
-
-          return req.permission === "master"
-            ? res.status(500).send({
-                message:
-                  "The account holder will need to enter their card details and upgrade to a paid plan.",
-              })
-            : res.status(402).send({
-                message:
-                  "Your subscription was cancelled, please upgrade your account",
-              });
-        }
-      }
-    }
-
-    // notify the user
-    await mail.send({
-      to: accountData.owner_email,
-      template: "plan-updated",
-      content: {
-        name: accountData.owner_name,
-        plan: plan.name,
-      },
-    });
-
-    // done
-    return res.status(200).send({
-      message: `Your account has been updated to the ${plan.name} plan`,
-      data: { plan: plan.id },
-    });
   };
 
   public get = async (req: AuthRequest, res: Response) => {
@@ -339,9 +271,10 @@ class AccountController extends Controller implements IAccountController {
 
     validate(data, ["plan"]);
 
-    const newPlanName = settings.plans.find(
-      (x: any) => x.id === data.plan,
-    ).name;
+    const plan = await planService.findById(data.plan);
+    assert(plan, "No plan with that ID");
+
+    const newPlanName = plan.name as string;
     const accountData = await Database.Account.custom.read.get(req.account);
     assert(accountData, "Account does not exist");
 
@@ -373,7 +306,8 @@ class AccountController extends Controller implements IAccountController {
       });
       stripeData.subscription = await stripe.subscribeCustomer({
         id: stripeData.customer.id,
-        plan: data.plan,
+        priceId: planService.getStripePriceId(plan) || undefined,
+        plan: planService.getStripePriceId(plan) ? undefined : data.plan,
       });
 
       // check for an incomplete payment that requires 2-factor authentication
@@ -601,9 +535,11 @@ class AccountController extends Controller implements IAccountController {
       ? await Database.Account.custom.read.get(req.account)
       : null;
 
+    const plans = await planService.listPublic();
+
     return res.status(200).send({
       data: {
-        plans: settings.plans,
+        plans,
         active: accountData ? accountData.plan : null,
       },
     });

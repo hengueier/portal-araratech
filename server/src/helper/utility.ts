@@ -60,6 +60,7 @@ export const currencySymbol = {
   eur: "€",
   aud: "$",
   cad: "$",
+  brl: "R$",
 };
 
 export function mask(s: any): string {

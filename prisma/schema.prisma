@@ -208,3 +208,20 @@ model TrackerEntry {
   @@index([trackerId])
   @@map("tracker_entry")
 }
+
+model Plan {
+  id                String   @id @db.VarChar(64)
+  name              String   @db.VarChar(256)
+  price             Int
+  interval          String   @db.VarChar(32)
+  currency          String   @default("brl") @db.VarChar(8)
+  features          Json     @default("[]")
+  stripeProductId   String?  @map("stripe_product_id") @db.VarChar(64)
+  stripePriceId     String?  @map("stripe_price_id") @db.VarChar(64)
+  active            Boolean  @default(true)
+  isFree            Boolean  @default(false) @map("is_free")
+  dateCreated       DateTime @default(now()) @map("date_created")
+  dateUpdated       DateTime @updatedAt @map("date_updated")
+
+  @@map("plan")
+}

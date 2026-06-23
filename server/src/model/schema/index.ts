@@ -9,3 +9,4 @@ export { Token } from "./Token/Token";
 export { User } from "./User/User";
 
 export { Preview } from "./Preview/Preview";
+export { Plan } from "./Plan/Plan";

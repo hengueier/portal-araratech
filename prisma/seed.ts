@@ -81,7 +81,25 @@ async function createAccountUser(params: {
   return { email, accountId };
 }
 
+async function seedPlans() {
+  await prisma.plan.upsert({
+    where: { id: "free" },
+    update: {},
+    create: {
+      id: "free",
+      name: "Free",
+      price: 0,
+      interval: "month",
+      currency: "brl",
+      features: [{ name: "Basic access", checked: true }],
+      active: true,
+      isFree: true,
+    },
+  });
+}
+
 async function main() {
+  await seedPlans();
   await cleanup();
 
   const created: Array<{ role: string; email: string; password: string }> = [];

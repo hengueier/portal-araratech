@@ -6,6 +6,8 @@ export default abstract class Controller {
   }
 
   protected sendError(res: Response, error: any, status = 400) {
-    return res.status(status).json({ success: false, error });
+    const message =
+      typeof error === "string" ? error : error?.message || "An error occurred";
+    return res.status(status).json({ success: false, error: message, message });
   }
 }
