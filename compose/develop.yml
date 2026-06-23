@@ -12,6 +12,7 @@ services:
       - DB_PROVIDER=postgresql
     volumes:
       - ./server/src:/usr/src/app/server/src:rw
+      - ./prisma:/usr/src/app/prisma:ro
     ports:
       - "8080:8080"
     env_file:
@@ -31,6 +32,7 @@ services:
       target: development
     volumes:
       - ./mission-control/src:/usr/src/app/mission-control/src:rw
+      - ./prisma:/usr/src/app/prisma:ro
     environment:
       - DOCKER=y
       - DATABASE_URL=postgresql://db_admin:db_admin@postgres:5432/portal_araratech

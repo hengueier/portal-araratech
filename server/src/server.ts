@@ -25,7 +25,7 @@ if (cluster.isPrimary) {
     const app: Express = express();
 
     /*NOTE:
-     * This map boot every middleware by passing as argument the instance of
+     * Thi map boot every middleware by passing as argument the instance of
      * the application. Every middleware registered here
      * should have a sync execution.
      * The configuration for each middleware is on it's respective files.

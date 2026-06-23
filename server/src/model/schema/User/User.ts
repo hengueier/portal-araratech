@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import Cryptr from "cryptr";
 import prisma from "../../prisma";
 import Model from "../Model";

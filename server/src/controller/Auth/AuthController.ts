@@ -4,7 +4,7 @@ import * as auth from "@/model/lib/Auth/Auth";
 import * as mail from "@/helper/mail";
 import * as utility from "@/helper/utility";
 import { Request, Response, NextFunction } from "express";
-import "./socialController";
+import "@/controller/Social/SocialController";
 import { AuthRequest } from "types/express";
 import Database from "@/model/Database";
 import Controller from "../Controller";

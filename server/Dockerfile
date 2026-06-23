@@ -90,8 +90,13 @@ EXPOSE ${PORT}
 CMD ["npm", "run", "prod"]
 
 FROM base as development
+WORKDIR /usr/src/app
+COPY ./package.json ./package-lock.json ./
+RUN npm install --ignore-scripts
+COPY ./prisma ./prisma
 WORKDIR /usr/src/app/server
 COPY ./server/package*.json ./
 RUN npm install
 COPY ./server ./
-CMD ["npm", "run", "server"]
+RUN npx prisma generate --schema=../prisma/schema.prisma --generator serverClient
+CMD ["sh", "-c", "npx prisma generate --schema=../prisma/schema.prisma --generator serverClient && npm run server"]

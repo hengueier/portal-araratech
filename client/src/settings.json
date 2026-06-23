@@ -1,7 +1,7 @@
 {
   "development": {
     "stripe": {
-      "publishableAPIKey": ""
+      "publishableAPIKey": "pk_test_51TlIkW7wxlOtOwdRceiU7BuVjQFDWVV1t1vZmX6Kb7yvFT5yZ41wl7QoSN2EX9BXDuZgBWrFK2FAl6AYblP6B8uo00ndKbTlaq"
     },
     "server_url": "http://localhost:8080"
   },

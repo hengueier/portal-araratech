@@ -1,4 +1,4 @@
-import React, { Fragment, useContext, useCallback, useState, useEffect } from "react";
+import React, { useContext, useCallback, useState, useEffect } from "react";
 import Axios from "axios";
 import {
   ViewContext,
@@ -28,7 +28,7 @@ const TABLE_HEADER = [
   { name: "date_created", title: "Cadastro", sort: true },
 ];
 
-export function SalesCustomers() {
+export function SalesCustomers({ className }: { className?: string }) {
   const context = useContext<any>(ViewContext);
   const plans = useAPI("/api/sales/plans");
   const [rows, setRows] = useState<any[]>([]);
@@ -114,14 +114,14 @@ export function SalesCustomers() {
   }
 
   return (
-    <Fragment>
+    <div className={className}>
       <Message
         title="Clientes"
         type="info"
         text="Titulares de conta e planos atuais. Você pode alterar plano e status da conta."
       />
 
-      <Card title="Clientes" restrictWidth>
+      <Card title="Clientes">
         <Table
           search
           loading={loading || plans.loading}
@@ -141,7 +141,7 @@ export function SalesCustomers() {
           ]}
         />
       </Card>
-    </Fragment>
+    </div>
   );
 }
 
@@ -153,7 +153,7 @@ const PLANS_HEADER = [
   { name: "stripe_price_id", title: "Stripe Price", sort: false },
 ];
 
-export function SalesPlans() {
+export function SalesPlans({ className }: { className?: string }) {
   const context = useContext<any>(ViewContext);
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -333,7 +333,7 @@ export function SalesPlans() {
   }
 
   return (
-    <Fragment>
+    <div className={className}>
       <Message
         title="Catálogo de planos"
         type="info"
@@ -344,7 +344,7 @@ export function SalesPlans() {
         <Button text="Novo plano" action={createPlan} />
       </TitleRow>
 
-      <Card restrictWidth>
+      <Card title="Planos" last>
         <Table
           search
           loading={loading}
@@ -367,6 +367,6 @@ export function SalesPlans() {
           ]}
         />
       </Card>
-    </Fragment>
+    </div>
   );
 }
