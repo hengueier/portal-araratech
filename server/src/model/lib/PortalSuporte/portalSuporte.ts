@@ -1,35 +1,21 @@
-import axios, { AxiosError } from "axios";
+import axios, { AxiosError, AxiosInstance } from "axios";
+import { getPortalSuporteConfig } from "./config";
 import type {
+  ExternalApiSingleResponse,
+  ExternalAttachment,
+  ExternalMessage,
   ExternalTicketDetail,
   ExternalTicketListFilters,
   PaginatedTickets,
 } from "./types";
 import { PortalSuporteError } from "./types";
 
-function getConfig() {
-  const baseUrl = process.env.PORTAL_SUPORTE_BASE_URL?.replace(/\/$/, "");
-  const apiKey = process.env.PORTAL_SUPORTE_API_KEY;
-  const companyCnpj = process.env.PORTAL_SUPORTE_COMPANY_CNPJ;
-  const contactEmail = process.env.PORTAL_SUPORTE_CONTACT_EMAIL;
-
-  if (!baseUrl || !apiKey) {
-    throw new PortalSuporteError(
-      "Integração com portal-suporte não configurada (PORTAL_SUPORTE_BASE_URL e PORTAL_SUPORTE_API_KEY)",
-      503,
-    );
-  }
-
-  if (!companyCnpj && !contactEmail) {
-    throw new PortalSuporteError(
-      "Filtro de cliente não configurado (PORTAL_SUPORTE_COMPANY_CNPJ ou PORTAL_SUPORTE_CONTACT_EMAIL)",
-      503,
-    );
-  }
-
-  return { baseUrl, apiKey, companyCnpj, contactEmail };
+function resolveFileUrl(baseUrl: string, fileUrl: string): string {
+  if (fileUrl.startsWith("http")) return fileUrl;
+  return `${baseUrl}${fileUrl.startsWith("/") ? "" : "/"}${fileUrl}`;
 }
 
-function resolveAttachmentUrls(
+function resolveDetailAttachmentUrls(
   ticket: ExternalTicketDetail,
   baseUrl: string,
 ): ExternalTicketDetail {
@@ -37,11 +23,19 @@ function resolveAttachmentUrls(
     ...ticket,
     attachments: ticket.attachments.map((a) => ({
       ...a,
-      file_url: a.file_url.startsWith("http")
-        ? a.file_url
-        : `${baseUrl}${a.file_url.startsWith("/") ? "" : "/"}${a.file_url}`,
+      file_url: resolveFileUrl(baseUrl, a.file_url),
     })),
   };
+}
+
+function resolveAttachmentList(
+  attachments: ExternalAttachment[],
+  baseUrl: string,
+): ExternalAttachment[] {
+  return attachments.map((a) => ({
+    ...a,
+    fileUrl: resolveFileUrl(baseUrl, a.fileUrl),
+  }));
 }
 
 function handleAxiosError(err: unknown): never {
@@ -58,8 +52,8 @@ function handleAxiosError(err: unknown): never {
 }
 
 export default class PortalSuporteService {
-  private getClient() {
-    const { baseUrl, apiKey } = getConfig();
+  private getClient(): AxiosInstance {
+    const { baseUrl, apiKey } = getPortalSuporteConfig();
     return axios.create({
       baseURL: `${baseUrl}/api/external`,
       headers: { "x-api-key": apiKey },
@@ -67,20 +61,27 @@ export default class PortalSuporteService {
     });
   }
 
-  async list(filters: ExternalTicketListFilters = {}): Promise<PaginatedTickets> {
-    const { companyCnpj, contactEmail } = getConfig();
-    const client = this.getClient();
+  private buildListParams(
+    filters: ExternalTicketListFilters = {},
+  ): Record<string, string | number> {
+    const { companyCnpj, contactEmail } = getPortalSuporteConfig();
 
-    const params: Record<string, string | number> = {
+    return {
       ...(companyCnpj ? { company_cnpj: companyCnpj } : {}),
       ...(contactEmail ? { contact_email: contactEmail } : {}),
       ...Object.fromEntries(
         Object.entries(filters).filter(([, v]) => v !== undefined && v !== ""),
       ),
     };
+  }
+
+  async list(filters: ExternalTicketListFilters = {}): Promise<PaginatedTickets> {
+    const client = this.getClient();
 
     try {
-      const res = await client.get<PaginatedTickets>("/tickets", { params });
+      const res = await client.get<PaginatedTickets>("/tickets", {
+        params: this.buildListParams(filters),
+      });
       return res.data;
     } catch (err) {
       handleAxiosError(err);
@@ -88,14 +89,42 @@ export default class PortalSuporteService {
   }
 
   async getById(id: string): Promise<ExternalTicketDetail> {
-    const { baseUrl } = getConfig();
+    const { baseUrl } = getPortalSuporteConfig();
     const client = this.getClient();
 
     try {
-      const res = await client.get<{ data: ExternalTicketDetail }>(
+      const res = await client.get<ExternalApiSingleResponse<ExternalTicketDetail>>(
         `/tickets/${id}`,
       );
-      return resolveAttachmentUrls(res.data.data, baseUrl);
+      return resolveDetailAttachmentUrls(res.data.data, baseUrl);
+    } catch (err) {
+      handleAxiosError(err);
+    }
+  }
+
+  async getMessages(id: string, after?: string): Promise<ExternalMessage[]> {
+    const client = this.getClient();
+
+    try {
+      const res = await client.get<ExternalApiSingleResponse<ExternalMessage[]>>(
+        `/tickets/${id}/messages`,
+        { params: after ? { after } : undefined },
+      );
+      return res.data.data;
+    } catch (err) {
+      handleAxiosError(err);
+    }
+  }
+
+  async getAttachments(id: string): Promise<ExternalAttachment[]> {
+    const { baseUrl } = getPortalSuporteConfig();
+    const client = this.getClient();
+
+    try {
+      const res = await client.get<ExternalApiSingleResponse<ExternalAttachment[]>>(
+        `/tickets/${id}/attachments`,
+      );
+      return resolveAttachmentList(res.data.data, baseUrl);
     } catch (err) {
       handleAxiosError(err);
     }

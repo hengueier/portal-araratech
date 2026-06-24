@@ -20,4 +20,18 @@ api.get(
   use(ticketController.getById),
 );
 
+api.get(
+  "/api/tickets/:id/messages",
+  auth.verify("agent"),
+  track,
+  use(ticketController.getMessages),
+);
+
+api.get(
+  "/api/tickets/:id/attachments",
+  auth.verify("agent"),
+  track,
+  use(ticketController.getAttachments),
+);
+
 export default api;

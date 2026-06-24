@@ -1,6 +1,8 @@
 import React, { Fragment } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Card, Loader, useAPI, Badge, Button } from "@/components/lib";
+import { Card, Loader, Badge, Button } from "@/components/lib";
+import { useAPITyped } from "@/hooks/useAPITyped";
+import type { TicketDetail, TicketMessage } from "@/types/tickets";
 
 function formatDate(iso: string) {
   if (!iso) return "";
@@ -9,7 +11,10 @@ function formatDate(iso: string) {
 
 export function TicketDetail() {
   const { id } = useParams<{ id: string }>();
-  const ticket = useAPI(id ? `/api/tickets/${id}` : null);
+  const ticket = useAPITyped<TicketDetail>(id ? `/api/tickets/${id}` : null);
+  const messages = useAPITyped<TicketMessage[]>(
+    id ? `/api/tickets/${id}/messages` : null,
+  );
 
   if (ticket.loading) {
     return <Loader />;
@@ -119,6 +124,31 @@ export function TicketDetail() {
           )}
         </div>
       </Card>
+
+      <div className="mt-6">
+      <Card title="Mensagens" restrictWidth>
+        {messages.loading ? (
+          <Loader />
+        ) : messages.data?.length ? (
+          <ul className="space-y-4">
+            {messages.data.map((m) => (
+              <li
+                key={m.id}
+                className="border border-slate-200 rounded-lg p-4 bg-slate-50"
+              >
+                <div className="flex justify-between text-sm text-slate-500 mb-2">
+                  <span className="font-medium text-slate-700">{m.remetente}</span>
+                  <span>{formatDate(m.criado_em)}</span>
+                </div>
+                <p className="whitespace-pre-wrap text-slate-800">{m.conteudo}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-slate-500">Nenhuma mensagem pública neste chamado.</p>
+        )}
+      </Card>
+      </div>
     </Fragment>
   );
 }
